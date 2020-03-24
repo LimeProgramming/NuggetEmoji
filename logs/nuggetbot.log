@@ -1,0 +1,11 @@
+[53.445339203] 2020-03-24 22:36:13,029 - INFO - launcher: Starting sanity checks
+[53.945064545] 2020-03-24 22:36:13,029 - INFO - launcher: Checking for Python 3.6+
+[53.945064545] 2020-03-24 22:36:13,029 - INFO - launcher: Checking console encoding
+[54.445505142] 2020-03-24 22:36:13,030 - INFO - launcher: Setting console encoding to UTF-8
+[532.955169678] 2020-03-24 22:36:13,508 - INFO - launcher: Required checks passed.
+[532.955169678] 2020-03-24 22:36:13,508 - INFO - launcher: Optional checks passed.
+[533.454656601] 2020-03-24 22:36:13,509 - INFO - launcher: Moving old nuggetbot log
+
+######################### PRE-RUN SANITY CHECKS PASSED #########################
+
+[11362.388134003] launcher-INFO: All done.

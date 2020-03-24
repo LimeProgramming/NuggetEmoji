@@ -13,12 +13,16 @@ def owner_only(func):
     async def wrapper(self, *args, **kwargs):
         og_msg = _get_variable('message')
 
-        if ((not og_msg)
-        or (og_msg.author.id == config.owner_id)):
+        print(og_msg)
+
+        if (
+            (og_msg)
+            or (og_msg.author.id == config.owner_id)
+            ):
             return await func(self, msg=og_msg)
 
         else:
-            return await _responce_generator(self, content="`You are not the bot owner.`")
+            return await _responce_generator(self, content=f"`You are not the bot owner. Bot owner is <@{config.owner_id}>`")
 
     return wrapper
 

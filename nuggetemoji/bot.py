@@ -16,9 +16,11 @@ from collections.abc import Iterable
 
 from .config import Config
 from .util import exceptions
+from .util.misc import Response
 from .util import gen_embed as GenEmbed
 from .util import fake_objects as FakeOBJS
 from .util.class_decorators import owner_only
+
 
 logging.basicConfig(level=logging.INFO)
 dblog = logging.getLogger("pgDB")
@@ -229,6 +231,54 @@ class NuggetEmoji(commands.Bot):
             #traceback.print_exc()
 
         return
+
+    async def on_message(self, message):
+
+        # ===== WAIT FOR THE BOT TO BE FINISHED SETTING UP
+        await self.wait_until_ready()
+
+        # ===== IGNORE OWN MESSAGES, BOT SHOULD DO THIS AUTOMATICALLY ANYWAY.
+        if message.author == self.user:
+            return
+
+       # ---------- LEGACY BOT CLASS COMMANDS ----------
+        if message.guild and message.guild.id == self.config.target_guild_id and message.clean_content.startswith(self.config.command_prefix):
+        
+            command = message.clean_content[len(self.config.command_prefix):].lower().split(" ")
+
+            if (len(command) > 1) and command[0] in self.bot_oneline_commands:
+                return
+
+            handler = getattr(self, "cmd_" + command[0], None)
+
+            if not handler:
+                return
+
+            try:
+                r = await handler(message)
+                
+                if isinstance(r, Response):
+                    if r.reply:
+
+                        if r.content and r.embed:
+                            await self.send_msg(message.channel, content=r.content, embed=r.embed, expire_in=r.delete_after)
+
+                        elif r.content:
+                            await self.send_msg(message.channel, content=r.content, expire_in=r.delete_after)
+                        
+                        elif r.embed:
+                            await self.send_msg(message.channel, embed=r.embed, expire_in=r.delete_after)
+
+                    await self.delete_msg(message)
+
+            except exceptions.Signal:
+                raise
+            
+            except Exception as e:
+                print(e)   
+
+       # ---------- commands.Bot COMMANDS ----------
+        await NuggetEmoji.bot.process_commands(message)
 
 
 # ======================================== Custom Bot Class Functions ========================================

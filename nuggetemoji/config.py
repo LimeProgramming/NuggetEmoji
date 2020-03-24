@@ -32,6 +32,14 @@ class Config:
         self._login_token = config.get('Credentials', 'Token', fallback=ConfigDefaults.token)
         self.owner_id=      config.get('Credentials', 'Owner', fallback=ConfigDefaults.owner_id)
 
+      # -------------------------------------------------- BOT --------------------------------------------------
+        self.delete_invoking=   config.getboolean(  'Bot', 'DeleteInvoking',    fallback=ConfigDefaults.delete_invoking)
+        self.command_prefix=    config.get(         'Bot', 'command_prefix',    fallback=ConfigDefaults.command_prefix)
+        self.playing_game=      config.get(         'Bot', 'game',              fallback=ConfigDefaults.playing_game)
+
+        #guild targetting
+        self.target_guild_id = config.getint('Guild', 'guild_id', fallback=ConfigDefaults.target_guild_id)
+        
       # -------------------------------------------------- CHANNELS --------------------------------------------------
         self.channels = {}
 

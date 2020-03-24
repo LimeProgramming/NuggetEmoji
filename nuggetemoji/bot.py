@@ -14,9 +14,22 @@ from typing import Union
 from discord.ext import commands
 from collections.abc import Iterable
 
-
 from .config import Config
+from .util import exceptions
+from .util import gen_embed as GenEmbed
 from .util import fake_objects as FakeOBJS
+from .util.class_decorators import owner_only
+
+logging.basicConfig(level=logging.INFO)
+dblog = logging.getLogger("pgDB")
+#log = logging.getLogger("bot")
+#log = logging.getLogger(__name__)
+
+description = """
+NuggetBot4.0
+A bot made for FurSail
+Made by Calamity Lime#8500
+"""
 
 plugins = (
 )
@@ -27,6 +40,47 @@ class NuggetEmoji(commands.Bot):
     RafDatetime = {}
     reactionmsgs = ""
 
+# ======================================== Bot Object Setup ========================================
+    def _cleanup(self):
+        try:
+            self.loop.run_until_complete(self.logout())
+        except: pass
+
+        pending = asyncio.Task.all_tasks()
+        gathered = asyncio.gather(*pending)
+
+        try:
+            gathered.cancel()
+            self.loop.run_until_complete(gathered)
+            gathered.exception()
+        except: pass
+
+    # noinspection PyMethodOverriding
+    def run(self):
+        try:
+            self.loop.run_until_complete(self.start(*self.config.auth))
+
+        except discord.errors.LoginFailure:
+            # Add if token, else
+            raise exceptions.HelpfulError(
+                "Bot cannot login, bad credentials.",
+                "Fix your token in the options file.  "
+                "Remember that each field should be on their own line."
+            )
+
+        finally:
+            try:
+                self._cleanup()
+            except Exception:
+                pass
+                #log.error("Error in cleanup", exc_info=True)
+
+            self.loop.close()
+
+            if self.exit_signal:
+                raise self.exit_signal
+
+
 # ======================================== Bot init Setup ========================================
     def __init__(self):
         NuggetEmoji.bot = self
@@ -36,6 +90,14 @@ class NuggetEmoji(commands.Bot):
 
       # ---------- Store startup timestamp ----------
         self.start_timestamp = datetime.datetime.utcnow()
+
+      # ---------- Store a list of all the legacy bot commands ----------
+        self.bot_oneline_commands = ["restart", "shutdown"]
+
+        super().__init__(command_prefix='?', description=description,
+                         pm_help=None, help_attrs=dict(hidden=True), fetch_offline_members=False)
+
+        self.aiosession = aiohttp.ClientSession(loop=self.loop)
 
       # -------------------- Load in the Cogs --------------------
         for plugin in plugins:
@@ -58,6 +120,116 @@ class NuggetEmoji(commands.Bot):
             except Exception as e:
                 print(e)
                 print(f'Failed to load extension {plugin}.', file=sys.stderr) 
+
+        return 
+
+
+# ======================================== Bot on Ready Funcs ========================================
+    async def pgdb_on_ready(self):
+
+        # ===== LOG INTO DATABASE
+        credentials = {"user": dblogin.user, "password": dblogin.pwrd, "database": dblogin.name, "host": dblogin.host}
+        try:
+            self.db = await asyncpg.create_pool(**credentials)
+        except Exception as e:
+            dblog.critical(f"There was an error connecting to the database {e}\nPlease make sure the login information in dblogin.ini is correct.")
+
+            self.exit_signal = exceptions.TerminateSignal
+            await self.logout()
+            await self.close()
+
+        return 
+
+
+# ======================================== Bot Events ========================================
+    async def on_ready(self):
+        print('\rConnected!  NuggetEmoji va0.1\n')
+
+        self.safe_print("--------------------------------------------------------------------------------")
+        self.safe_print("Bot:   {0.name}#{0.discriminator} \t\t| ID: {0.id}".format(self.user))
+
+        owner = await self._get_owner()
+
+        self.safe_print("Owner: {0.name}#{0.discriminator} \t| ID: {0.id}".format(owner))
+
+        self.safe_print(r"--------------------------------------------------------------------------------")
+        self.safe_print(r" _______                              __ ___________                  __.__     ")
+        self.safe_print(r" \      \  __ __  ____   ____   _____/  |\_   _____/ _____   ____    |__|__|    ")
+        self.safe_print(r" /   |   \|  |  \/ ___\ / ___\_/ __ \   __\    __)_ /     \ /  _ \   |  |  |    ")
+        self.safe_print(r"/    |    \  |  / /_/  > /_/  >  ___/|  | |        \  Y Y  (  <_> )  |  |  |    ")
+        self.safe_print(r"\____|__  /____/\___  /\___  / \___  >__|/_______  /__|_|  /\____/\__|  |__|    ")
+        self.safe_print(r"        \/     /_____//_____/      \/            \/      \/      \______|       ")
+        self.safe_print(r"--------------------------------------------------------------------------------")
+        self.safe_print("\n")
+
+
+        await self.pgdb_on_ready()
+
+        return
+
+    async def on_resume(self):
+        # ===== If the bot is still setting up
+        await self.wait_until_ready()
+
+        self.safe_print("Bot resumed")
+
+    async def on_error(self, event, *args, **kwargs):
+        ex_type, ex, stack = sys.exc_info()
+
+        if ex_type == exceptions.HelpfulError:
+            print("Exception in", event)
+            print(ex.message)
+            
+            await asyncio.sleep(2)
+            await self.db.close()
+            await self.logout()
+            await self.close()
+
+        elif issubclass(ex_type, exceptions.Signal):
+            self.exit_signal = ex_type
+            await self.db.close()
+            await self.logout()
+            await self.close()
+
+        elif ex_type == exceptions.PostAsWebhook:
+
+            channel = self.get_channel(614956834771566594)
+            Webhook = discord.utils.get(await channel.webhooks(), name='NugBotErrors')
+
+            await Webhook.send(
+                content=        ex.message,
+                username=       "NuggetBotErrors",
+                avatar_url=     self.user.avatar_url,
+                tts=            False,
+                files=          None,
+                embeds=         None
+            )
+
+        else:
+            print('Ignoring exception in {}'.format(event), file=sys.stderr)
+            traceback.print_exc()
+            #pass
+           # print(stack)
+
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, discord.ext.commands.errors.PrivateMessageOnly):
+
+            await ctx.channel.send(f'`Command "{ctx.message.content.split(" ")[0]}" only works in DM\'s.`', delete_after=15)
+
+            if self.config.delete_invoking:
+                await ctx.message.delete()
+
+        elif isinstance(error, discord.ext.commands.errors.CheckFailure):
+            if self.config.delete_invoking:
+                await ctx.message.delete()
+
+        else:
+            print('Ignoring exception in {}'.format(ctx.invoked_with), file=sys.stderr)
+            print(error)
+            #traceback.print_exc()
+
+        return
+
 
 # ======================================== Custom Bot Class Functions ========================================
   # -------------------- Safe Send/Delete Messages --------------------
@@ -317,6 +489,7 @@ class NuggetEmoji(commands.Bot):
         await self.delete_msg(message)
         return
 
+
 # ======================================== Misc ========================================
     def safe_print(self, content, *, end='\n', flush=True):
         """Custom function to allow printing to console with less issues from asyncio"""
@@ -373,3 +546,39 @@ class NuggetEmoji(commands.Bot):
                 return True 
 
         return False
+
+    async def _get_owner(self):
+        return (await self.application_info()).owner
+
+
+#======================================== Owner Commands ========================================
+    @owner_only
+    async def cmd_restart(self, msg):
+        """
+        Useage:
+            [prefix]restart
+        [Bot Owner] Restarts the bot.
+        """
+        embed= await GenEmbed.ownerRestart(msg=msg)
+
+        await self.send_msg(msg.channel, embed=embed)
+        await self.delete_msg(msg)
+        self.exit_signal = exceptions.RestartSignal()
+
+        raise exceptions.RestartSignal
+
+    @owner_only
+    async def cmd_shutdown(self, msg):
+        """
+        Useage:
+            [prefix]shutdown
+        [Bot Owner] Shuts down the bot.
+        """
+
+        embed = await GenEmbed.ownerShutdown(msg)
+
+        await self.send_msg(msg.channel, embed=embed)
+
+        #self.exit_signal = exceptions.TerminateSignal()
+        await self.delete_msg(msg)
+        raise exceptions.TerminateSignal

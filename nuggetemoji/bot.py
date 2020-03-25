@@ -164,7 +164,6 @@ class NuggetEmoji(commands.Bot):
         self.safe_print(r"--------------------------------------------------------------------------------")
         self.safe_print("\n")
 
-
         await self.pgdb_on_ready()
 
         return
@@ -537,6 +536,172 @@ class NuggetEmoji(commands.Bot):
 
         await asyncio.sleep(after)
         await self.delete_msg(message)
+        return
+
+  # -------------------- Custom Webhook Handling --------------------
+    @asyncio.coroutine
+    async def execute_webhook(self, webhook:discord.Webhook, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, embed:discord.Embed = None, embeds = None, tts:bool = False):
+        '''
+        Custom discord.Webhook executer. 
+        Using this webhook executer forces the discord.py libaray to POST a webhook using the http.request function rather than the request function built into WebhookAdapter.
+        The big difference between the two functions is that http.request preforms the POST with an "Authorization" header which allows for the use of emojis and other bot level privilages.
+        
+        Parameters
+        ------------
+        webhook :class:`discord.Webhook`
+            The webhook you want to POST to.
+        content :class:`str`
+            Content of the POST message
+        username Optional[:class:`str`]
+            Username to post the webhook under. Overwrites the default name of the webhook.
+        avatar_url Optional[:class:`discord.Asset`]
+            Avatar for the webhook poster. Overwrites the default avatar of the webhook.
+        embed Optional[:class:`discord.Embed`]
+            discord Embed opject to post.
+        embeds List[:class:`discord.Embed`]
+            List of discord Embed object to post, maximum of 10 allowable.
+        tts :class:`bool`
+            Indicates if the message should be sent using text-to-speech.
+        '''
+
+        if embeds is not None and embed is not None:
+            raise discord.errors.InvalidArgument('Cannot mix embed and embeds keyword arguments.')
+
+        payload = {
+            'tts':tts
+        }
+
+        if content is not None:
+            payload['content'] = str(content).replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
+
+        if username:
+            payload['username'] = username
+
+        if avatar_url:
+            payload['avatar_url'] = str(avatar_url)
+
+        if embeds is not None:
+            if len(embeds) > 10:
+                raise discord.errors.InvalidArgument('embeds has a maximum of 10 elements.')
+            payload['embeds'] = [e.to_dict() for e in embeds]
+
+        if embed is not None:
+            payload['embeds'] = [embed.to_dict()]
+
+
+        await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook.id}/{webhook.token}'), json=payload)
+
+        return
+
+    @asyncio.coroutine
+    async def execute_webhook2(self, channel:discord.TextChannel, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, embed:discord.Embed = None, embeds = None, files = None, tts:bool = False):
+        '''
+        Custom discord.Webhook executer. 
+        Using this webhook executer forces the discord.py libaray to POST a webhook using the http.request function rather than the request function built into WebhookAdapter.
+        The big difference between the two functions is that http.request preforms the POST with an "Authorization" header which allows for the use of emojis and other bot level privilages.
+        
+        Parameters
+        ------------
+        webhook :class:`discord.Webhook`
+            The webhook you want to POST to.
+        content :class:`str`
+            Content of the POST message
+        username Optional[:class:`str`]
+            Username to post the webhook under. Overwrites the default name of the webhook.
+        avatar_url Optional[:class:`discord.Asset`]
+            Avatar for the webhook poster. Overwrites the default avatar of the webhook.
+        embed Optional[:class:`discord.Embed`]
+            discord Embed opject to post.
+        embeds List[:class:`discord.Embed`]
+            List of discord Embed object to post, maximum of 10 allowable.
+        tts :class:`bool`
+            Indicates if the message should be sent using text-to-speech.
+        '''
+        # ---------- SORTOUT THE PAYLOAD ----------
+        if embeds is not None and embed is not None:
+            raise discord.errors.InvalidArgument('Cannot mix embed and embeds keyword arguments.')
+
+        payload = {
+            'tts':tts,
+            "allowed_mentions": {
+                "parse": [],
+                "users": [],
+                "roles": []
+            }
+        }
+
+        if content is not None:
+            payload['content'] = str(content).replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
+
+        if username:
+            payload['username'] = username
+
+        if avatar_url:
+            payload['avatar_url'] = str(avatar_url)
+
+        if embeds is not None:
+            if len(embeds) > 10:
+                raise discord.errors.InvalidArgument('embeds has a maximum of 10 elements.')
+            payload['embeds'] = [e.to_dict() for e in embeds]
+
+        if embed is not None:
+            payload['embeds'] = [embed.to_dict()]
+
+        # ---------- GET WEBHOOK FROM DB ----------
+        r = await self.db.fetchrow(pgCmds.GET_WEBHOOK, channel.id)
+
+        if not r:
+            ava = await self.user.avatar_url_as(format="png", size=128).read()
+            newWebhook = await channel.create_webhook(name='StoredInNuggetBot', avatar=ava, reason='Used by NuggetBot to post webhooks.')
+
+            webhook_id = newWebhook.id
+            webhook_token = newWebhook.token
+
+            await self.db.execute(pgCmds.SET_WEBHOOK, webhook_id, webhook_token, channel.id)
+
+        else: webhook_id, webhook_token = r
+
+        # ---------- SORT OUT FILES ----------
+        cleanup = None
+        cleanup_files = [] 
+
+        form = aiohttp.FormData()
+        form.add_field('payload_json', discord.utils.to_json(payload))
+
+        if files is not None:
+            for i, file in enumerate(files, start=1):
+                if isinstance(file, discord.message.Attachment):
+                    filename = file.filename
+                    fp = await file.read()
+
+                elif isinstance(file, discord.File):
+                    cleanup_files.append(file)
+                    filename = file.filename, 
+                    fp = file.fp
+                
+                elif isinstance(file, Iterable):
+                    filename = file[0]
+                    fp = file[1]        
+
+                form.add_field('file%i' % i, fp, filename=filename, content_type='application/octet-stream')
+        
+            def _anon():
+                for f in cleanup_files:
+                    f.close()
+
+            cleanup = _anon
+
+        try:
+            await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), data=form)
+        
+        except discord.errors.HTTPException:
+            print("http")
+            pass
+
+        finally:
+            if cleanup:
+                cleanup()
+
         return
 
 

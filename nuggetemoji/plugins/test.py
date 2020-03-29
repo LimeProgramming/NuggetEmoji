@@ -248,7 +248,14 @@ class Test(commands.Cog):
             reason=         'Give the Bot Owner their Role.'
             )
 
-        
+    @commands.Cog.listener()
+    async def on_guild_emojis_update(self, guild, before, after):
+        """
+        before (Sequence[Emoji]) – A list of emojis before the update.
+        after (Sequence[Emoji]) – A list of emojis after the update.
+        """
+
+        pass
 
     @commands.Cog.listener()
     async def on_message(self, msg):

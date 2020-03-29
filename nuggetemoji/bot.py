@@ -142,9 +142,23 @@ class NuggetEmoji(commands.Bot):
             await self.logout()
             await self.close()
 
+        # ===== CREATE DATABASE COMPOSITE TYPES
+        database_types=[
+            {'exists':'EXISTS_DISCORD_IMG',         'create':'CREATE_DISCORD_IMG',        'log':'Created discord image type.'}
+        ]
+
+        dblog.info(" Checking PG database types.")
+
+        for dbTypes in database_types:
+            if not await self.db.fetchval(getattr(pgCmds, dbTypes['exists'])):
+                await self.db.execute(getattr(pgCmds, dbTypes['create']))
+                dblog.info(f" {dbTypes['log']}")
+
         # ===== CREATE DATABASE TABLES AT STARTUP
         database_tables = [
-            {'exists':'EXISTS_WEBHOOK_TABLE',       'create':'CREATE_WEBHOOK_TABLE',        'log':'Create webhook table.'}
+            {'exists':'EXISTS_WEBHOOK_TABLE',       'create':'CREATE_WEBHOOK_TABLE',        'log':'Create webhook table.'},
+            {'exists':'EXISTS_EMOJI_TABLE',         'create':'CREATE_EMOJI_TABLE',          'log':'Create emoji table.'},
+            {'exists':'EXISTS_VAULT_TABLE',         'create':'CREATE_VAULT_TABLE',          'log':'Create vault table.'}
         ]
 
         dblog.info(" Checking PG database tables.")
@@ -153,6 +167,18 @@ class NuggetEmoji(commands.Bot):
             if not await self.db.fetchval(getattr(pgCmds, dbTables['exists'])):
                 await self.db.execute(getattr(pgCmds, dbTables['create']))
                 dblog.info(f" {dbTables['log']}")
+
+        # ===== CREATE DATABASE TRIGGERS
+        database_triggers = [
+            {'exists':'EXISTS_EMOJIVAULT_TRIGGER',      'create':'CREATE_EMOJIVAULT_TRIGGER',       'log':'Created Emoji Vault trigger.'}
+        ]
+        
+        dblog.info(" Checking PG database triggers.")
+
+        for dbTrig in database_triggers:
+            if not await self.db.fetchval(getattr(pgCmds, dbTrig['exists'])):
+                await self.db.execute(getattr(pgCmds, dbTrig['create']))
+                dblog.info(f" {dbTrig['log']}")
 
         return 
 

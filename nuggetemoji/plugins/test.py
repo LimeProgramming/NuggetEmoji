@@ -67,8 +67,13 @@ class Test(commands.Cog):
 
         asyncio.sleep(1.0)
 
-        
 
+  # -------------------- Commands -------------------- 
+    @commands.command(pass_context=True, hidden=False, name='createstorageguild', aliases=[])
+    async def cmd_createstorageguild(self, ctx):
+        await self.bot.createstorageguild()
+
+        return
         
 
 def setup(bot):

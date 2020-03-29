@@ -1,6 +1,7 @@
 import re
 import sys
 import json
+import random
 import dblogin
 import asyncio
 import aiohttp
@@ -34,6 +35,7 @@ Made by Calamity Lime#8500
 """
 
 plugins = (
+    ('nuggetemoji.plugins.test',       'Test'),
 )
 
 class NuggetEmoji(commands.Bot):
@@ -165,8 +167,11 @@ class NuggetEmoji(commands.Bot):
         self.safe_print("\n")
 
         await self.pgdb_on_ready()
+        
+        # ----- If bots first run.
+        if not pathlib.Path("data/Do Not Delete").exists():
+            await self.first_run(owner)
 
-        return
 
     async def on_resume(self):
         # ===== If the bot is still setting up
@@ -279,6 +284,11 @@ class NuggetEmoji(commands.Bot):
        # ---------- commands.Bot COMMANDS ----------
         await NuggetEmoji.bot.process_commands(message)
 
+    async def first_run(self, owner):
+        await owner.send("Thank you for bringing me to life.")
+
+        with open("data/Do Not Delete") as f:
+            f.write("Unless you want the bot to reinitialize")
 
 # ======================================== Custom Bot Class Functions ========================================
   # -------------------- Safe Send/Delete Messages --------------------
@@ -704,6 +714,35 @@ class NuggetEmoji(commands.Bot):
 
         return
 
+
+  # -------------------- Emoji Stuff --------------------
+    
+    @asyncio.coroutine
+    async def create_storage_server(self):
+        server_name = ""
+
+        # ----- Generate Random Name (for now)
+        i = random.randint(5, 20)
+
+        while i < 0:
+            j = random.choice(['a','b','c','d','e','f','g','h','i','j','k','l','n','m','o','p','q','r','s','t','u','v','w','x','y','z'])
+
+            if random.choice([True, False]):
+                j = j.upper()
+            
+            server_name = server_name + j
+
+            i = i - 1
+
+        # ----- Pick a Random Icon
+        icon = random.choice([x for x in pathlib.Path(r"plugins\images\storageservericons").iterdir() if x.isfile() and x.suffix in ['.png', '.webp', '.jpeg']])
+
+        # ----- Create Guild
+        self.create_guild(
+            name=server_name,
+            region=discord.VoiceRegion.eu_central,
+            icon=icon.read_bytes()
+        )
 
 # ======================================== Misc ========================================
     def safe_print(self, content, *, end='\n', flush=True):

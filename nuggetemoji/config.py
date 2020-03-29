@@ -29,8 +29,8 @@ class Config:
         self.auth = ()
 
       # -------------------------------------------------- CREDENTIALS --------------------------------------------------
-        self._login_token = config.get('Credentials', 'Token', fallback=ConfigDefaults.token)
-        self.owner_id=      config.get('Credentials', 'Owner', fallback=ConfigDefaults.owner_id)
+        self._login_token = config.get(             'Credentials', 'Token',     fallback=ConfigDefaults.token)
+        self.owner_id=      config.getint(          'Credentials', 'Owner',     fallback=ConfigDefaults.owner_id)
 
       # -------------------------------------------------- BOT --------------------------------------------------
         self.delete_invoking=   config.getboolean(  'Bot', 'DeleteInvoking',    fallback=ConfigDefaults.delete_invoking)

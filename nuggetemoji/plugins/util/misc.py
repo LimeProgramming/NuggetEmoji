@@ -15,7 +15,10 @@ Kind Regards
 
 import os
 import yaml
+import random
+import discord
 import asyncio
+import colorsys
 import datetime
 from io import BytesIO
 from PIL import Image
@@ -147,3 +150,16 @@ async def GET_AVATAR_BYTES(user: Union[User, Member], size: int, *, fmt='png', m
     return avatar_bytes
 
 
+def RANDOM_DISCORD_COLOUR():
+    choice = random.choice([1]*10 + [2]*20 + [3]*20)
+
+    if choice == 1:
+        values = [int(x * 255) for x in colorsys.hsv_to_rgb(random.random(), 1, 1)]
+    elif choice == 2: 
+        values = [int(x * 255) for x in colorsys.hsv_to_rgb(random.random(), random.random(), 1)]
+    else:
+        values = [int(x * 255) for x in colorsys.hsv_to_rgb(random.random(), random.random(), random.random())]
+
+    color = discord.Color.from_rgb(*values)
+
+    return color

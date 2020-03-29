@@ -96,7 +96,7 @@ class NuggetEmoji(commands.Bot):
         self.start_timestamp = datetime.datetime.utcnow()
 
       # ---------- Store a list of all the legacy bot commands ----------
-        self.bot_oneline_commands = ["restart", "shutdown"]
+        self.bot_oneline_commands = ["restart", "shutdown", 'reboot']
 
         super().__init__(command_prefix='?', description=description,
                          pm_help=None, help_attrs=dict(hidden=True), fetch_offline_members=False)
@@ -287,7 +287,7 @@ class NuggetEmoji(commands.Bot):
     async def first_run(self, owner):
         await owner.send("Thank you for bringing me to life.")
 
-        with open("data/Do Not Delete") as f:
+        with open("data/Do Not Delete", 'w') as f:
             f.write("Unless you want the bot to reinitialize")
 
 # ======================================== Custom Bot Class Functions ========================================
@@ -724,7 +724,7 @@ class NuggetEmoji(commands.Bot):
         # ----- Generate Random Name (for now)
         i = random.randint(5, 20)
 
-        while i < 0:
+        while i > 0:
             j = random.choice(['a','b','c','d','e','f','g','h','i','j','k','l','n','m','o','p','q','r','s','t','u','v','w','x','y','z'])
 
             if random.choice([True, False]):
@@ -735,10 +735,10 @@ class NuggetEmoji(commands.Bot):
             i = i - 1
 
         # ----- Pick a Random Icon
-        icon = random.choice([x for x in pathlib.Path(r"plugins\images\storageservericons").iterdir() if x.isfile() and x.suffix in ['.png', '.webp', '.jpeg']])
+        icon = random.choice([x for x in pathlib.Path(r"nuggetemoji\plugins\images\storageservericons").iterdir() if x.is_file() and x.suffix in ['.png', '.webp', '.jpeg']])
 
         # ----- Create Guild
-        self.create_guild(
+        await self.create_guild(
             name=server_name,
             region=discord.VoiceRegion.eu_central,
             icon=icon.read_bytes()
@@ -808,6 +808,21 @@ class NuggetEmoji(commands.Bot):
 #======================================== Owner Commands ========================================
     @owner_only
     async def cmd_restart(self, msg):
+        """
+        Useage:
+            [prefix]restart
+        [Bot Owner] Restarts the bot.
+        """
+        embed= await GenEmbed.ownerRestart(msg=msg)
+
+        await self.send_msg(msg.channel, embed=embed)
+        await self.delete_msg(msg)
+        self.exit_signal = exceptions.RestartSignal()
+
+        raise exceptions.RestartSignal
+
+    @owner_only
+    async def cmd_reboot(self, msg):
         """
         Useage:
             [prefix]restart

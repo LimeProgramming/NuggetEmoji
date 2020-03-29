@@ -21,7 +21,7 @@ from .util.misc import Response
 from .util import gen_embed as GenEmbed
 from .util import fake_objects as FakeOBJS
 from .util.class_decorators import owner_only
-
+from .db_cmds import DatabaseCmds as pgCmds
 
 logging.basicConfig(level=logging.INFO)
 dblog = logging.getLogger("pgDB")
@@ -141,6 +141,18 @@ class NuggetEmoji(commands.Bot):
             self.exit_signal = exceptions.TerminateSignal
             await self.logout()
             await self.close()
+
+        # ===== CREATE DATABASE TABLES AT STARTUP
+        database_tables = [
+            {'exists':'EXISTS_WEBHOOK_TABLE',       'create':'CREATE_WEBHOOK_TABLE',        'log':'Create webhook table.'}
+        ]
+
+        dblog.info(" Checking PG database tables.")
+
+        for dbTables in database_tables:
+            if not await self.db.fetchval(getattr(pgCmds, dbTables['exists'])):
+                await self.db.execute(getattr(pgCmds, dbTables['create']))
+                dblog.info(f" {dbTables['log']}")
 
         return 
 

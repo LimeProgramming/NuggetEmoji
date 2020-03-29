@@ -13,7 +13,7 @@ from functools import partial
 from discord.ext import commands
 
 from .util import checks, cogset
-from .util.misc import RANDOM_DISCORD_COLOUR
+from .util.misc import RANDOM_DISCORD_COLOUR, AVATAR_URL_AS, GUILD_URL_AS
 #from nuggetbot import exceptions
 #from nuggetbot.database import DatabaseCmds as pgCmds
 
@@ -171,6 +171,9 @@ class Test(commands.Cog):
             position=           0
         )
 
+        # ----- Wait
+        await asyncio.sleep(0.5)
+
         # ----- All Emotes
         await guild.create_text_channel(
             name=               '📖all_available_emojis',
@@ -247,8 +250,39 @@ class Test(commands.Cog):
 
         
 
+    @commands.Cog.listener()
+    async def on_message(self, msg):
 
+        if msg.author.id == 282293589713616896 and msg.channel.id == 692042023938555934:
 
+            pattern = re.compile(r':(.*?):', re.DOTALL)
+            msg_content = msg.content
+
+            for et in set(pattern.findall(msg.content)):
+                for e in msg.guild.emojis:
+                    
+                    found_emoji = None 
+                    
+                    if e.name == et:
+                        found_emoji = e 
+                        break
+
+                if found_emoji is None:
+                    continue
+
+                msg_content = msg_content.replace(f':{et}:', f'<{"a" if e.animated else ""}:{e.name}:{e.id}>')
+
+            if msg_content == msg.content:
+                return
+
+            await self.bot.execute_webhook2(
+                channel=        msg.channel,
+                content=        msg_content,
+                username=       msg.author.display_name,
+                avatar_url=     AVATAR_URL_AS(msg.author, format="png", size=128)
+            )
+
+            await msg.delete()
 
 
   # -------------------- Commands -------------------- 

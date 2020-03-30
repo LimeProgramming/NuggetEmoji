@@ -185,7 +185,7 @@ class NuggetEmoji(commands.Bot):
 
 # ======================================== Bot Events ========================================
     async def on_ready(self):
-        print('\rConnected!  NuggetEmoji va0.1\n')
+        print('\rConnected!  NuggetEmoji va0.2\n')
 
         self.safe_print("--------------------------------------------------------------------------------")
         self.safe_print("Bot:   {0.name}#{0.discriminator} \t\t| ID: {0.id}".format(self.user))
@@ -709,15 +709,15 @@ class NuggetEmoji(commands.Bot):
         payload = {
             'tts':tts,
             "allowed_mentions": {
-                "parse": [],
+                "parse": ["everyone"],
                 "users": [],
-                "roles": []
+                "roles": [654438136629166140]
             }
         }
 
         if content is not None:
-            payload['content'] = str(content).replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
-
+            payload['content'] = str(content)#.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
+        
         if username:
             payload['username'] = username
 
@@ -779,7 +779,8 @@ class NuggetEmoji(commands.Bot):
         try:
             await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), data=form)
         
-        except discord.errors.HTTPException:
+        except discord.errors.HTTPException as e:
+            print(e)
             print("http")
             pass
 

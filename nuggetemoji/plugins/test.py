@@ -259,37 +259,46 @@ class Test(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg):
+        
+        # ===== Ignore Bots
+        if msg.author.bot:
+            return
 
-        if msg.author.id == 282293589713616896:
+        # ===== Forcefully Ignore Webhooks
+        if msg.webhook_id:
+            return
 
-            pattern = re.compile(r':(.*?):', re.DOTALL)
-            msg_content = msg.content
+        pattern = re.compile(r':(.*?):', re.DOTALL)
+        msg_content = msg.content
 
-            for et in set(pattern.findall(msg.content)):
-                for e in msg.guild.emojis:
-                    
-                    found_emoji = None 
-                    
-                    if e.name == et:
-                        found_emoji = e 
-                        break
+        for et in set(pattern.findall(msg.content)):
+            for e in msg.guild.emojis:
+                
+                found_emoji = None 
+                
+                if e.name == et:
+                    found_emoji = e 
+                    break
 
-                if found_emoji is None:
-                    continue
+            if found_emoji is None:
+                continue
 
-                msg_content = msg_content.replace(f':{et}:', f'<{"a" if e.animated else ""}:{e.name}:{e.id}>')
+            msg_content = msg_content.replace(f':{et}:', f'<{"a" if e.animated else ""}:{e.name}:{e.id}>')
 
-            if msg_content == msg.content:
-                return
+        if msg_content == msg.content:
+            return
 
-            await self.bot.execute_webhook2(
-                channel=        msg.channel,
-                content=        msg_content,
-                username=       msg.author.display_name,
-                avatar_url=     AVATAR_URL_AS(msg.author, format="png", size=128)
-            )
+        print(msg.content)
+        print(msg.clean_content)
 
-            await msg.delete()
+        await self.bot.execute_webhook2(
+            channel=        msg.channel,
+            content=        msg_content,
+            username=       msg.author.display_name,
+            avatar_url=     AVATAR_URL_AS(msg.author, format="png", size=128)
+        )
+
+        await msg.delete()
 
 
   # -------------------- Commands -------------------- 

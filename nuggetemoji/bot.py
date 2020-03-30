@@ -210,6 +210,43 @@ class NuggetEmoji(commands.Bot):
         if not pathlib.Path("data/Do Not Delete").exists():
             await self.first_run(owner)
 
+        # ----- Update Emoji DB
+        for guild in self.bot.guilds:
+            emojis = await guild.fetch_emojis()
+
+            for moji in emojis:
+                await self.db.execute(pgCmds.ADD_EMOJI, moji.id, moji.name, moji.animated, moji.guild_id, None, moji.created_at, moji.user.id)
+                await asyncio.sleep(0.1)
+
+        # ----- Find Dupe Emojis in the database
+        dbret = await self.db.fetch(pgCmds.GET_EMOJI_DUPE)
+        dupes = dict()
+
+        for i in dbret:
+            if not i['name'] in dupes.keys():
+                dupes[i['name']] = list()
+            
+            dupes[i['name']].append((i['e_id'], i['animated']))
+        
+        print(dupes)
+
+        # ----- Dupe Emojis have been Found
+        if len(dupes) > 0:
+            for i in dupes:
+
+                warning_msg = f"{len(dupes[i])} duplicates for emoji named {i} have been found"
+
+                for j in dupes[i]:
+                    print(j)
+                    warning_msg = warning_msg + f'\n <{"a" if j[1] else ""}:{i}:{j[0]}>'
+
+                print(warning_msg)
+                #await owner.send(warning_msg)
+
+                
+
+
+
 
     async def on_resume(self):
         # ===== If the bot is still setting up

@@ -5,12 +5,14 @@ class DatabaseCmds(object):
         CREATE TABLE IF NOT EXISTS emoji_list (
             e_id            BIGINT          PRIMARY KEY,
             name            VARCHAR(100)    NOT NULL,
+            animated        BOOLEAN         NOT NULL,
             image           DISCORD_IMG,
+            available       BOOLEAN         DEFAULT TRUE,
+            uploader        BIGINT,      
+            created_at      TIMESTAMP       DEFAULT TIMEZONE('utc'::text, NOW()),
             src_guild       BIGINT,
             src_image_name  VARCHAR(100),
-            created_at      TIMESTAMP       DEFAULT TIMEZONE('utc'::text, NOW()),
-            available       BOOLEAN         DEFAULT TRUE,
-            uploader        BIGINT          
+            vaultify        BOOLEAN         DEFAULT TRUE
         );
 
         COMMENT ON TABLE emoji_list IS                  'Holds information of all the emojis the bot can access. Storing this data would save bandwidth.';
@@ -20,7 +22,6 @@ class DatabaseCmds(object):
         COMMENT ON COLUMN emoji_list.src_guild IS       'Guild the emoji is actually presant in.';
         COMMENT ON COLUMN emoji_list.src_image_name IS  'Name of the image file uploaded via discord commands.';
         COMMENT ON COLUMN emoji_list.created_at IS      'Date the emote was added to the guild.';
-        COMMENT ON COLUMN emoji_list.available IS       'If the emote is still on the source guild. This is stored for the sake of having the database automate the Vault.';
         COMMENT ON COLUMN emoji_list.uploader IS        'User id of the emoji uploader.';    
         """
 
@@ -28,20 +29,45 @@ class DatabaseCmds(object):
 
     UPDATE_EMOJI_NAME=  ""
 
-    REMOVE_EMOJI=   "UPDATE public.emoji_list SET emoji_list.available = FALSE WHERE emoji_list.e_id = $1"
+    REMOVE_EMOJI=       "UPDATE public.emoji_list SET emoji_list.available = FALSE WHERE emoji_list.e_id = $1"
+
+    ADD_EMOJI=          """                
+                        INSERT INTO public.emoji_list(
+                            e_id, name, animated, src_guild, src_image_name, created_at, uploader
+                            )
+                        VALUES(
+                            $1, $2, $3, $4, $5, $6, $7
+                            )
+                        ON CONFLICT (e_id)
+                            DO
+                            UPDATE SET name = $2;
+                        """
+
+    GET_EMOJI_DUPE=     """     
+                        SELECT emoji_list.e_id, emoji_list.name, emoji_list.animated, dups.row
+                        FROM emoji_list
+                        INNER JOIN (
+                            SELECT 
+                                name,
+                                ROW_NUMBER() OVER(PARTITION BY name ORDER BY name ASC) AS Row
+                            FROM emoji_list 
+                            ) dups 
+                        ON (emoji_list.name = dups.name AND dups.Row > 1)
+                        ORDER BY name ASC;
+                        """
 
   # ============================== VAULT TABLE ============================== 
     CREATE_VAULT_TABLE = """
         CREATE TABLE IF NOT EXISTS emoji_vault (
             e_id            BIGINT          PRIMARY KEY,
             name            VARCHAR(100)    NOT NULL,
+            animated        BOOLEAN         NOT NULL,
             image           DISCORD_IMG,
-            src_guild       BIGINT,
-            src_image_name  VARCHAR(100),
+            uploader        BIGINT,
             created_at      TIMESTAMP       DEFAULT TIMEZONE('utc'::text, NOW()),
             removed_at      TIMESTAMP       DEFAULT TIMEZONE('utc'::text, NOW()),
-            available       BOOLEAN         DEFAULT TRUE,
-            uploader        BIGINT          
+            src_guild       BIGINT,
+            src_image_name  VARCHAR(100)
         );
     
         COMMENT ON TABLE emoji_vault IS                  'Holds information of all the emojis the bot can access. Storing this data would save bandwidth.';
@@ -52,7 +78,6 @@ class DatabaseCmds(object):
         COMMENT ON COLUMN emoji_vault.src_image_name IS  'Name of the image file uploaded via discord commands.';
         COMMENT ON COLUMN emoji_vault.created_at IS      'Date the emote was added to the guild.';
         COMMENT ON COLUMN emoji_vault.removed_at IS      'Date the emote was removed from the guild.';
-        COMMENT ON COLUMN emoji_vault.available IS       'If the emote is still on the source guild. This is stored for the sake of having the database automate the Vault.';
         COMMENT ON COLUMN emoji_vault.uploader IS        'User id of the emoji uploader.';  
         """
 
@@ -110,27 +135,25 @@ class DatabaseCmds(object):
                 COST 200 AS
 
             $$BEGIN
-                IF NEW.available = True THEN
-                    RETURN NEW;
+                IF OLD.vaultify = FLASE THEN
+                    RETURN OLD;
                 END IF;
-
+                
                 INSERT INTO public.emoji_vault(
-                    e_id, name, image, src_guild, src_image_name, created_at, uploader
+                    e_id,  name, animated, image, uploader, created_at, removed_at, src_guild, src_image_name
                     )
                 VALUES(
-                    NEW.e_id, NEW.name, NEW.image, NEW.src_guild, NEW.src_image_name, NEW.created_at, NEW.uploader
+                    OLD.e_id,  OLD.name, OLD.animated, OLD.image, OLD.uploader, OLD.created_at, OLD.removed_at, OLD.src_guild, OLD.src_image_name
                     )
                 ON CONFLICT (e_id)
                     DO NOTHING;
 
-                DELETE FROM public.emoji_list WHERE e_id = NEW.e_id;
-
-                RETURN NEW;
+                RETURN OLD;
             END;$$;
         END IF;    
 
         IF NOT EXISTS(SELECT * FROM information_schema.triggers WHERE event_object_table = 'emoji_list' AND trigger_name = 'manageRetirees') THEN
-            CREATE TRIGGER manageRetirees AFTER UPDATE OF available ON emoji_list FOR EACH ROW
+            CREATE TRIGGER manageRetirees BEFORE DELETE ON emoji_list FOR EACH ROW
                 EXECUTE PROCEDURE emoji_manageRetirees();
         END IF;
         END

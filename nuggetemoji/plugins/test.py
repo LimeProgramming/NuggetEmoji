@@ -260,7 +260,7 @@ class Test(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, msg):
 
-        if msg.author.id == 282293589713616896 and msg.channel.id == 692042023938555934:
+        if msg.author.id == 282293589713616896:
 
             pattern = re.compile(r':(.*?):', re.DOTALL)
             msg_content = msg.content

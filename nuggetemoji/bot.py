@@ -39,6 +39,7 @@ Made by Calamity Lime#8500
 
 plugins = (
     ('nuggetemoji.plugins.test',       'Test'),
+    ('nuggetemoji.plugins.owner',      'Owner'),
 )
 
 class NuggetEmoji(commands.Bot):
@@ -280,6 +281,21 @@ class NuggetEmoji(commands.Bot):
             await self.logout()
             await self.close()
 
+        elif ex_type == discord.ext.commands.errors.CommandInvokeError:
+            if issubclass(type(ex.original), exceptions.Signal):
+
+                if type(ex.original) == exceptions.RestartSignal:
+                    self.exit_signal = exceptions.RestartSignal()
+
+                elif type(ex.original) == exceptions.TerminateSignal:
+                    self.exit_signal = exceptions.TerminateSignal()
+
+                await self.test_db.bot_close()
+                await self.db.close()
+
+                await self.logout()
+                await self.close()
+
         elif issubclass(ex_type, exceptions.Signal):
             self.exit_signal = ex_type
             await self.db.close()
@@ -318,12 +334,25 @@ class NuggetEmoji(commands.Bot):
             if self.config.delete_invoking:
                 await ctx.message.delete()
 
+        elif isinstance(error.original, exceptions.TerminateSignal):
+            pass 
+
+        elif isinstance(error.original, exceptions.RestartSignal):
+            pass
+            #print("I've been told to reboot.")
+
         else:
             print('Ignoring exception in {}'.format(ctx.invoked_with), file=sys.stderr)
             print(error)
             #traceback.print_exc()
 
         return
+
+    async def first_run(self, owner):
+        await owner.send("Thank you for bringing me to life.")
+
+        with open("data/Do Not Delete", 'w') as f:
+            f.write("Unless you want the bot to reinitialize")
 
     async def on_message(self, message):
 
@@ -372,12 +401,6 @@ class NuggetEmoji(commands.Bot):
 
        # ---------- commands.Bot COMMANDS ----------
         await NuggetEmoji.bot.process_commands(message)
-
-    async def first_run(self, owner):
-        await owner.send("Thank you for bringing me to life.")
-
-        with open("data/Do Not Delete", 'w') as f:
-            f.write("Unless you want the bot to reinitialize")
 
 # ======================================== Custom Bot Class Functions ========================================
   # -------------------- Safe Send/Delete Messages --------------------
@@ -1024,7 +1047,7 @@ class NuggetEmoji(commands.Bot):
 
         await self.test_db.bot_close()
         await self.db.close()
-        
+
         raise exceptions.RestartSignal
 
     @owner_only

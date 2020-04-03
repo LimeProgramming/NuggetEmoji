@@ -17,7 +17,10 @@ class sqlite_db:
         return
 
     async def bot_close(self):
-        await self.conn.close()
+        try:
+            await self.conn.close()
+        except ValueError:
+            pass
         return
 
     # Adds a guild to the guilds table

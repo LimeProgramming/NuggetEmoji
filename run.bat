@@ -8,7 +8,9 @@ GOTO :loop
 
 :loop
     IF %X% EQU 1 (
-
+        
+        echo enterloop
+        
         python runbot.py 
 
         SET /p texte=<"data\reboot.txt"

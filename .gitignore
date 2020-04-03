@@ -4,3 +4,4 @@ config/botConfig.ini
 config/botConfig.ini
 config/botConfig2.ini
 nuggetemoji/plugins/images/storageservericons/src/
+*.db

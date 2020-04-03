@@ -10,6 +10,7 @@ import asyncpg
 import logging
 import pathlib
 import datetime
+import aiosqlite
 import traceback
 from typing import Union
 from discord.ext import commands
@@ -22,6 +23,8 @@ from .util import gen_embed as GenEmbed
 from .util import fake_objects as FakeOBJS
 from .util.class_decorators import owner_only
 from .db_cmds import DatabaseCmds as pgCmds
+#from .sqlite_cmds import DatabaseCmds as sqliteCmds
+from .test_db import sqlite_db
 
 logging.basicConfig(level=logging.INFO)
 dblog = logging.getLogger("pgDB")
@@ -205,7 +208,12 @@ class NuggetEmoji(commands.Bot):
         self.safe_print("\n")
 
         await self.pgdb_on_ready()
-        
+
+        self.test_db = sqlite_db()
+        await self.test_db.bot_ready()
+
+        await self.test_db.create_webhook_table()
+
         # ----- If bots first run.
         if not pathlib.Path("data/Do Not Delete").exists():
             await self.first_run(owner)
@@ -249,10 +257,16 @@ class NuggetEmoji(commands.Bot):
 
 
     async def on_resume(self):
+        await self.test_db.bot_ready()
+
         # ===== If the bot is still setting up
         await self.wait_until_ready()
 
         self.safe_print("Bot resumed")
+
+    async def on_disconnect(self):
+        await self.test_db.bot_close()
+        return
 
     async def on_error(self, event, *args, **kwargs):
         ex_type, ex, stack = sys.exc_info()
@@ -790,6 +804,119 @@ class NuggetEmoji(commands.Bot):
 
         return
 
+    @asyncio.coroutine
+    async def execute_webhook3(self, channel:discord.TextChannel, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, embed:discord.Embed = None, embeds = None, files = None, tts:bool = False):
+        '''
+        Custom discord.Webhook executer. 
+        Using this webhook executer forces the discord.py libaray to POST a webhook using the http.request function rather than the request function built into WebhookAdapter.
+        The big difference between the two functions is that http.request preforms the POST with an "Authorization" header which allows for the use of emojis and other bot level privilages.
+        
+        Parameters
+        ------------
+        webhook :class:`discord.Webhook`
+            The webhook you want to POST to.
+        content :class:`str`
+            Content of the POST message
+        username Optional[:class:`str`]
+            Username to post the webhook under. Overwrites the default name of the webhook.
+        avatar_url Optional[:class:`discord.Asset`]
+            Avatar for the webhook poster. Overwrites the default avatar of the webhook.
+        embed Optional[:class:`discord.Embed`]
+            discord Embed opject to post.
+        embeds List[:class:`discord.Embed`]
+            List of discord Embed object to post, maximum of 10 allowable.
+        tts :class:`bool`
+            Indicates if the message should be sent using text-to-speech.
+        '''
+        # ---------- SORTOUT THE PAYLOAD ----------
+        if embeds is not None and embed is not None:
+            raise discord.errors.InvalidArgument('Cannot mix embed and embeds keyword arguments.')
+
+        payload = {
+            'tts':tts,
+            "allowed_mentions": {
+                "parse": ["everyone"],
+                "users": [],
+                "roles": [654438136629166140]
+            }
+        }
+
+        if content is not None:
+            payload['content'] = str(content)#.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
+        
+        if username:
+            payload['username'] = username
+
+        if avatar_url:
+            payload['avatar_url'] = str(avatar_url)
+
+        if embeds is not None:
+            if len(embeds) > 10:
+                raise discord.errors.InvalidArgument('embeds has a maximum of 10 elements.')
+            payload['embeds'] = [e.to_dict() for e in embeds]
+
+        if embed is not None:
+            payload['embeds'] = [embed.to_dict()]
+
+        # ---------- GET WEBHOOK FROM DB ----------
+    
+
+        r = await self.test_db.get_webhook(channel.id)
+
+        if not r:
+            ava = await self.user.avatar_url_as(format="png", size=128).read()
+            newWebhook = await channel.create_webhook(name='SQLite', avatar=ava, reason='Used by NuggetBot to post webhooks.')
+
+            webhook_id = newWebhook.id
+            webhook_token = newWebhook.token
+
+            await self.test_db.set_webhook(webhook_id, webhook_token, channel.id)
+
+        else: webhook_id, webhook_token = r
+
+        # ---------- SORT OUT FILES ----------
+        cleanup = None
+        cleanup_files = [] 
+
+        form = aiohttp.FormData()
+        form.add_field('payload_json', discord.utils.to_json(payload))
+
+        if files is not None:
+            for i, file in enumerate(files, start=1):
+                if isinstance(file, discord.message.Attachment):
+                    filename = file.filename
+                    fp = await file.read()
+
+                elif isinstance(file, discord.File):
+                    cleanup_files.append(file)
+                    filename = file.filename, 
+                    fp = file.fp
+                
+                elif isinstance(file, Iterable):
+                    filename = file[0]
+                    fp = file[1]        
+
+                form.add_field('file%i' % i, fp, filename=filename, content_type='application/octet-stream')
+        
+            def _anon():
+                for f in cleanup_files:
+                    f.close()
+
+            cleanup = _anon
+
+        try:
+            await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), data=form)
+        
+        except discord.errors.HTTPException as e:
+            print(e)
+            print("http")
+            pass
+
+        finally:
+            if cleanup:
+                cleanup()
+
+        return
 
   # -------------------- Emoji Stuff --------------------
     
@@ -895,6 +1022,9 @@ class NuggetEmoji(commands.Bot):
         await self.delete_msg(msg)
         self.exit_signal = exceptions.RestartSignal()
 
+        await self.test_db.bot_close()
+        await self.db.close()
+        
         raise exceptions.RestartSignal
 
     @owner_only
@@ -910,6 +1040,9 @@ class NuggetEmoji(commands.Bot):
         await self.delete_msg(msg)
         self.exit_signal = exceptions.RestartSignal()
 
+        await self.test_db.bot_close()
+        await self.db.close()
+        
         raise exceptions.RestartSignal
 
     @owner_only
@@ -923,7 +1056,10 @@ class NuggetEmoji(commands.Bot):
         embed = await GenEmbed.ownerShutdown(msg)
 
         await self.send_msg(msg.channel, embed=embed)
-
-        #self.exit_signal = exceptions.TerminateSignal()
         await self.delete_msg(msg)
+        self.exit_signal = exceptions.TerminateSignal()
+        
+        await self.test_db.bot_close()
+        await self.db.close()
+
         raise exceptions.TerminateSignal

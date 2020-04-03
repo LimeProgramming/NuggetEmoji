@@ -268,30 +268,40 @@ class Test(commands.Cog):
         if msg.webhook_id:
             return
 
-        pattern = re.compile(r':(.*?):', re.DOTALL)
+        pattern = re.compile(r':([^\s-].*?):', re.DOTALL)
         msg_content = msg.content
 
         for et in set(pattern.findall(msg.content)):
             for e in msg.guild.emojis:
                 
                 found_emoji = None 
+
+                # = Skip static emotes since everyone can use those anyway.
+                if not e.animated:
+                    continue 
                 
+                # = If emoji name is a match, note it and break inner loop 
                 if e.name == et:
                     found_emoji = e 
                     break
-
+            
+            # === If inner loop failed to find emoji, skip to next find.
             if found_emoji is None:
                 continue
-
+            
+            # === Replace sent emote with emote id.
             msg_content = msg_content.replace(f':{et}:', f'<{"a" if e.animated else ""}:{e.name}:{e.id}>')
-
+        
+        # ===== Exit if no changes were made.
         if msg_content == msg.content:
             return
+        
+        print(f'MSG pre strip: {msg_content}')
+        stripper = re.compile(r'[:\s+][\s+:]', re.UNICODE)
+        msg_content = stripper.sub('', msg_content)
+        print(f'MSG post strip: {msg_content}')
 
-        print(msg.content)
-        print(msg.clean_content)
-
-        await self.bot.execute_webhook2(
+        await self.bot.execute_webhook3(
             channel=        msg.channel,
             content=        msg_content,
             username=       msg.author.display_name,

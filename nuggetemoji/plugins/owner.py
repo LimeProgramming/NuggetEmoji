@@ -1,6 +1,7 @@
 import sys
 import discord
 import asyncio
+import datetime
 
 from typing import Union
 from functools import partial
@@ -19,24 +20,24 @@ class Owner(commands.Cog):
         self.bot = bot
 
   # -------------------- local Cog Events -------------------- 
-  
+
     @asyncio.coroutine
     async def cog_before_invoke(self, ctx):
         await ctx.channel.trigger_typing()
 
     @asyncio.coroutine
     async def cog_after_invoke(self, ctx):
-        if self.bot.confing.delete_invoking:
+        if self.bot.config.delete_invoking:
             try:
-                await ctx.delete()
+                await ctx.message.delete()
             except discord.errors.NotFound:
                 pass 
 
     @asyncio.coroutine
     async def cog_command_error(self, ctx, error):
-        if self.bot.confing.delete_invoking:
+        if self.bot.config.delete_invoking:
             try:
-                await ctx.delete()
+                await ctx.message.delete()
             except discord.errors.NotFound:
                 pass 
         
@@ -52,6 +53,32 @@ class Owner(commands.Cog):
         [Disabled command]
         """
 
+        embed = discord.Embed(  
+            description=    "Restarting 👋",
+            colour=         0x6BB281,
+            timestamp=      datetime.datetime.utcnow(),
+            type=           "rich"
+            )
+
+        if ctx.guild:
+            embed.set_footer(
+                icon_url=       GUILD_URL_AS(ctx.guild), 
+                text=           ctx.guild.name
+                )
+        else:
+            embed.set_footer(
+                icon_url=       AVATAR_URL_AS(user=self.bot.user), 
+                text=           self.bot.user.name
+                )
+
+        embed.set_author(       
+            name=           "Owner Command",
+            icon_url=       AVATAR_URL_AS(user=ctx.author)
+            )
+
+        await self.bot.send_msg(ctx.channel, embed=embed)
+        await self.bot.delete_msg(ctx.message)
+
         raise RestartSignal
     
     @checks.BOT_OWNER()
@@ -60,6 +87,32 @@ class Owner(commands.Cog):
         """
         [Disabled command]
         """
+
+        embed = discord.Embed(  
+            description=    "Shutting Down 👋",
+            colour=         0x6BB281,
+            timestamp=      datetime.datetime.utcnow(),
+            type=           "rich"
+            )
+
+        if ctx.guild:
+            embed.set_footer(
+                icon_url=       GUILD_URL_AS(ctx.guild), 
+                text=           ctx.guild.name
+                )
+        else:
+            embed.set_footer(
+                icon_url=       AVATAR_URL_AS(user=self.bot.user), 
+                text=           self.bot.user.name
+                )
+
+        embed.set_author(
+            name=           "Owner Command",
+            icon_url=       AVATAR_URL_AS(user=ctx.author)
+            )
+
+        await self.bot.send_msg(ctx.channel, embed=embed)
+        await self.bot.delete_msg(ctx.message)
 
         raise TerminateSignal
 

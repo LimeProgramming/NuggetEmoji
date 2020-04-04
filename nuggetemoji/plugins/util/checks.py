@@ -6,6 +6,21 @@ from discord.ext import commands
 from collections.abc import Iterable
 from .misc import GUILD_URL_AS, AVATAR_URL_AS, RANDOM_DISCORD_COLOR
 
+
+##Permissions decor | guild owner only
+def GUILD_ONLY(*args):
+    async def pred(ctx):
+        if not ctx:
+            return False   
+
+        if ctx.guild:
+            return True
+
+        await ctx.channel.send(embed=await __gen_guildonly_embed(ctx))
+        return False
+
+    return commands.check(pred)
+
 # -------------------- STAFF DECORS --------------------
 ##Permissions decor | guild owner only
 def GUILD_OWNER(*args):
@@ -122,6 +137,23 @@ async def __gen_missingperms_embed(ctx, missing_perms):
         name=       "Error:",
         value=      "```\nYou are missing the following permission(s) to run command \"{}\"\n{}\n```".format(
                         ctx.invoked_with, '\n'.join(['>'+i.capitalize() for i in missing_perms])),
+        inline=     False
+        )
+
+    return embed
+
+async def __gen_guildonly_embed(ctx):
+    embed = discord.Embed(  
+        title=      ':x: Guild Only Command',
+        description="",
+        type=       'rich',
+        timestamp=  datetime.datetime.utcnow(),
+        color=      RANDOM_DISCORD_COLOR()
+        )
+
+    embed.add_field(    
+        name=       "Error:",
+        value=      f"```\nThe command you're trying to run {ctx.invoked_with} only works in guilds/servers.\n```",
         inline=     False
         )
 

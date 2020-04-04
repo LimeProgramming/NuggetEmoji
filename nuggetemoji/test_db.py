@@ -1,9 +1,19 @@
 import discord
 import aiosqlite
+from enum import Enum
 from pathlib import Path
 
 DBPATH = Path.cwd() / "data" / "bot.db"
 
+class DBReturns(Enum):
+    SUCCESS =       "Success!"
+    ROLEDUPLICIT =  "Role is already allowed."
+    INVALIDGUILD =  "Guild data is invalid."
+    INVALIDROLE  =  "Role data is invalid."
+    ROLENOTGUILD =  "Role is not in this guild/server."
+    
+    def __str__(self):
+        return self.value
 
 class sqlite_db:
     def __init__(self): 
@@ -92,13 +102,26 @@ class sqlite_db:
     async def get_guild_allowed_roles(self, guild_id):
         sql = "SELECT allowed_roles FROM guild_settings WHERE guild_id = CAST(:guild_id as BIGINT) LIMIT 1;" 
 
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD 
+
+      # ---------- Get exsiting data ----------
         await self.cursor.execute(sql, {"guild_id":guild_id})
         fetched = await self.cursor.fetchone()
-        
-        if not fetched:
-            return False 
 
-        return [int(i) for i in fetched.split(',') if i.isdigit()]
+        return [int(i) for i in fetched['allowed_roles'].split(',') if i.isdigit()]
 
     async def set_guild_allowed_roles(self, roles, guild_id):
         sql = """ 
@@ -109,24 +132,44 @@ class sqlite_db:
             guild_id =          CAST(:guild_id AS BIGINT);
         """
 
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return False 
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return False 
+
+      # ---------- Sort out of the roles arg ----------
         role_ids = []
         for i in roles:
 
-            if type(i, discord.role):
+            if isinstance(i, discord.role):
                 if not i.guild.id == guild_id:
                     continue
 
                 role_ids.append(str(i.id))
 
-            elif type(i, str):
+            elif type(i) is str:
                 if i.isdigit():
                     role_ids.append(i)
             
-            elif type(i, int):
+            elif type(i) is  int:
                 role_ids.append(str(i))
+
+        if len(role_ids) == 0:
+            return False 
 
         role_ids = ','.join(role_ids)
 
+      # ---------- Set new data ----------
         await self.cursor.execute(sql, {"role_ids":role_ids, "guild_id":guild_id})
         await self.conn.commit()
         return
@@ -135,12 +178,26 @@ class sqlite_db:
 
         sql = "SELECT allowed_roles FROM guild_settings WHERE guild_id = CAST(:guild_id as BIGINT) LIMIT 1;" 
 
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD 
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD 
+
+      # ---------- Get exsiting data ----------
         await self.cursor.execute(sql, {"guild_id":guild_id})
         fetched = await self.cursor.fetchone()
-        
-        if not fetched:
-            fetched = ""
 
+      # ---------- Set new sql query ----------
         sql = """ 
         UPDATE guild_settings
         SET 
@@ -150,25 +207,33 @@ class sqlite_db:
         """
 
       # ---------- Sort out of the role arg ----------
-        if type(role, discord.Role):
+        if isinstance(role, discord.Role):
             if not role.guild.id == guild_id:
-                return False
-            role = role.id
+                return DBReturns.ROLENOTGUILD
+            role = str(role.id)
 
-        elif type(role, str):
+        elif type(role) is str:
             role = role.strip()
 
             if not role.isdigit():
-                return False
+                return DBReturns.INVALIDROLE
                 
-        elif type(role, int):
+        elif type(role) is int:
             role = str(role)
 
-        role_ids = fetched + "," + role
+        if not fetched['allowed_roles']:
+            role_ids = role 
+        else:
+            
+            if role in [int(i) for i in fetched['allowed_roles'].split(',') if i.isdigit()]:
+                return DBReturns.ROLEDUPLICIT
 
+            role_ids = fetched['allowed_roles'] + "," + role
+
+      # ---------- Set new data ----------
         await self.cursor.execute(sql, {"role_ids":role_ids, "guild_id":guild_id})
         await self.conn.commit()
-        return True
+        return DBReturns.SUCCESS
 
     async def add_guild_settings(self, guild_id, prefix):
         sql = """ 
@@ -183,10 +248,10 @@ class sqlite_db:
         """
 
       # ---------- Sort out of the guild arg ----------
-        if type(guild_id, discord.Guild):
+        if isinstance(guild_id, discord.Guild):
             guild_id = guild_id.id
 
-        elif type(guild_id, str):
+        elif type(guild_id) is str:
             guild_id = guild_id.strip()
 
             if not guild_id.isdigit():
@@ -194,7 +259,7 @@ class sqlite_db:
 
             guild_id =  int(guild_id)
         
-        if not type(guild_id, int):
+        if not type(guild_id) is int:
             return False 
 
       # ---------- Sort out the prefix arg ----------
@@ -214,10 +279,10 @@ class sqlite_db:
         """
 
       # ---------- Sort out of the guild arg ----------
-        if type(guild_id, discord.Guild):
+        if isinstance(guild_id, discord.Guild):
             guild_id = guild_id.id
 
-        elif type(guild_id, str):
+        elif type(guild_id) is str:
             guild_id = guild_id.strip()
 
             if not guild_id.isdigit():
@@ -225,7 +290,7 @@ class sqlite_db:
 
             guild_id =  int(guild_id)
         
-        if not type(guild_id, int):
+        if not type(guild_id) is int:
             return False 
 
       # ---------- Sort out the prefix arg ----------

@@ -215,6 +215,7 @@ class NuggetEmoji(commands.Bot):
         await self.test_db.bot_ready()
 
         await self.test_db.create_webhook_table()
+        await self.test_db.create_guild_settings_table()
 
         # ----- If bots first run.
         if not pathlib.Path("data/Do Not Delete").exists():
@@ -335,9 +336,9 @@ class NuggetEmoji(commands.Bot):
         #    if self.config.delete_invoking:
         #        await ctx.message.delete()
 
-        #else:
-        #    print('Ignoring exception in {}'.format(ctx.invoked_with), file=sys.stderr)
-        #    print(error)
+        else:
+            print('Ignoring exception in {}'.format(ctx.invoked_with), file=sys.stderr)
+            print(error)
 
         return
 

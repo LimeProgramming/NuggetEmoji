@@ -52,6 +52,10 @@ class Test(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, msg):
         
+        # ===== Ignore DMs
+        if not msg.guild:
+            return
+
         # ===== Ignore Bots
         if msg.author.bot:
             return
@@ -87,7 +91,14 @@ class Test(commands.Cog):
         # ===== Exit if no changes were made.
         if msg_content == msg.content:
             return
-        
+
+        # ===== Checked allowed roles in the Guild
+        allowed_roles = await self.bot.test_db.get_guild_allowed_roles(msg.guild)
+
+        if allowed_roles:
+            if not bool(set(allowed_roles).intersection(set([i.id for i in msg.author.roles]))):
+                return
+
         stripper = re.compile(r'[:\s+][\s+:]', re.UNICODE)
         msg_content = stripper.sub('', msg_content)
 

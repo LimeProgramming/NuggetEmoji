@@ -149,7 +149,6 @@ async def GET_AVATAR_BYTES(user: Union[User, Member], size: int, *, fmt='png', m
 
     return avatar_bytes
 
-
 def RANDOM_DISCORD_COLOUR():
     choice = random.choice([1]*10 + [2]*20 + [3]*20)
 
@@ -164,7 +163,6 @@ def RANDOM_DISCORD_COLOUR():
 
     return color
 
-
 def AVATAR_URL_AS(user, format=None, static_format='webp', size=256):
     if not isinstance(user, discord.abc.User):
         return 'https://cdn.discordapp.com/embed/avatars/0.png'
@@ -178,7 +176,6 @@ def AVATAR_URL_AS(user, format=None, static_format='webp', size=256):
 
     return 'https://cdn.discordapp.com/avatars/{0.id}/{0.avatar}.{1}?size={2}'.format(user, format, size)
 
-
 def GUILD_URL_AS(guild, format=None, static_format='webp', size=256):
     if not isinstance(guild, discord.Guild):
         return 'https://cdn.discordapp.com/embed/avatars/0.png'
@@ -187,3 +184,8 @@ def GUILD_URL_AS(guild, format=None, static_format='webp', size=256):
         format = 'gif' if guild.is_icon_animated() else static_format
 
     return 'https://cdn.discordapp.com/icons/{0.id}/{0.icon}.{1}?size={2}'.format(guild, format, size)
+
+
+# -------------------- ENGLISH FTW --------------------
+
+RANDOM_DISCORD_COLOR = RANDOM_DISCORD_COLOUR

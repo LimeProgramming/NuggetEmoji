@@ -40,6 +40,7 @@ Made by Calamity Lime#8500
 plugins = (
     ('nuggetemoji.plugins.test',       'Test'),
     ('nuggetemoji.plugins.owner',      'Owner'),
+    ('nuggetemoji.plugins.admin',      'Admin'),
 )
 
 class NuggetEmoji(commands.Bot):
@@ -330,21 +331,13 @@ class NuggetEmoji(commands.Bot):
             if self.config.delete_invoking:
                 await ctx.message.delete()
 
-        elif isinstance(error, discord.ext.commands.errors.CheckFailure):
-            if self.config.delete_invoking:
-                await ctx.message.delete()
+        #elif isinstance(error, discord.ext.commands.errors.CheckFailure):
+        #    if self.config.delete_invoking:
+        #        await ctx.message.delete()
 
-        elif isinstance(error.original, exceptions.TerminateSignal):
-            pass 
-
-        elif isinstance(error.original, exceptions.RestartSignal):
-            pass
-            #print("I've been told to reboot.")
-
-        else:
-            print('Ignoring exception in {}'.format(ctx.invoked_with), file=sys.stderr)
-            print(error)
-            #traceback.print_exc()
+        #else:
+        #    print('Ignoring exception in {}'.format(ctx.invoked_with), file=sys.stderr)
+        #    print(error)
 
         return
 

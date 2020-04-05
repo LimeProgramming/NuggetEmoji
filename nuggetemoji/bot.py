@@ -389,8 +389,16 @@ class NuggetEmoji(commands.Bot):
         delete_after=0,
         also_delete:discord.Message =None, 
         allowed_mentions=None,
+        file=None,
+        files=None,
         quiet=True):
         
+        msg = None
+
+      # ---------- Sort out file and files ---------- 
+        if file is not None and files is not None:
+            raise discord.InvalidArgument('cannot pass both file and files parameter to send()')
+
       # ---------- Sort out dest arg ---------- 
         channel = await self._get_channel(dest)
 
@@ -403,26 +411,71 @@ class NuggetEmoji(commands.Bot):
         else:
             allowed_mentions = self.AllowedMentions.to_dict()
 
+      # ---------- Sort out file single ---------- 
+        if file is not None:
+            if not isinstance(file, discord.File):
+                raise discord.InvalidArgument('file parameter must be File')
+
+            try:
+                data = await self.send_files_rqt(channel.id, files=[file], content=content, tts=tts, embed=embed, allowed_mentions=allowed_mentions)
+                msg = self._connection.create_message(channel=channel, data=data)
+
+            except discord.Forbidden:
+                if not quiet:
+                    self.safe_print("[Warning] Cannot send message to {dest.name}, no permission")
+
+            except discord.NotFound:
+                if not quiet:
+                    self.safe_print("[Warning] Cannot send message to {dest.name}, invalid channel?")
+
+            finally:
+                file.close()
+
+      # ---------- Sort out files pural ---------- 
+        elif files is not None:
+            if len(files) > 10:
+                raise discord.InvalidArgument('files parameter must be a list of up to 10 elements')
+
+            elif not all(isinstance(file, discord.File) for file in files):
+                raise discord.InvalidArgument('files parameter must be a list of File')
+
+            try:
+                data = await self.send_files_rqt(channel.id, files=files, content=content, tts=tts, embed=embed, allowed_mentions=allowed_mentions)
+                msg = self._connection.create_message(channel=channel, data=data)
+
+            except discord.Forbidden:
+                if not quiet:
+                    self.safe_print("[Warning] Cannot send message to {dest.name}, no permission")
+
+            except discord.NotFound:
+                if not quiet:
+                    self.safe_print("[Warning] Cannot send message to {dest.name}, invalid channel?")
+
+            finally:
+                for f in files:
+                    f.close()
+
       # ---------- Sort out dest arg ---------- 
-        msg = None
+        else:
+            try:
+                data = await self.send_msg_rqt(channel.id, content, tts=tts, embed=embed, allowed_mentions=allowed_mentions)
+                msg = self._connection.create_message(channel=channel, data=data)
 
-        try:
-            data = await self.send_msg_rqt(channel.id, content, tts=tts, embed=embed, allowed_mentions=allowed_mentions)
-            msg = self._connection.create_message(channel=channel, data=data)
+            except discord.Forbidden:
+                if not quiet:
+                    self.safe_print("[Warning] Cannot send message to {dest.name}, no permission")
 
+            except discord.NotFound:
+                if not quiet:
+                    self.safe_print("[Warning] Cannot send message to {dest.name}, invalid channel?")
+
+      # ---------- Sort out deleting ----------
+        if msg is not None:
             if also_delete and isinstance(also_delete, discord.Message):
                 asyncio.ensure_future(self.__del_msg_later(also_delete, delete_after))
 
             if delete_after:
                 asyncio.ensure_future(self.__del_msg_later(msg, delete_after))
-
-        except discord.Forbidden:
-            if not quiet:
-                self.safe_print("[Warning] Cannot send message to {dest.name}, no permission")
-
-        except discord.NotFound:
-            if not quiet:
-                self.safe_print("[Warning] Cannot send message to {dest.name}, invalid channel?")
 
         return msg
 
@@ -847,29 +900,28 @@ class NuggetEmoji(commands.Bot):
 
         if content:
             payload['content'] = content
-
         if allowed_mentions:
             payload['allowed_mentions'] = allowed_mentions
-
         if tts:
             payload['tts'] = True
-
         if embed:
             payload['embed'] = embed
-
         if nonce:
             payload['nonce'] = nonce
 
         return await self.bot.http.request(r, json=payload)
 
-    def send_files(self, channel_id, *, files, content=None, tts=False, embed=None, nonce=None):
+    async def send_files_rqt(self, channel_id, *, files, content=None, tts=False, embed=None, nonce=None, allowed_mentions):
         r = discord.http.Route('POST', '/channels/{channel_id}/messages', channel_id=channel_id)
 
         form = aiohttp.FormData()
 
         payload = {'tts': tts}
+
         if content:
             payload['content'] = content
+        if allowed_mentions:
+            payload['allowed_mentions'] = allowed_mentions
         if embed:
             payload['embed'] = embed
         if nonce:
@@ -883,4 +935,4 @@ class NuggetEmoji(commands.Bot):
             for index, file in enumerate(files):
                 form.add_field('file%s' % index, file.fp, filename=file.filename, content_type='application/octet-stream')
 
-        return self.bot.http.request(r, data=form, files=files)
+        return await self.bot.http.request(r, data=form, files=files)

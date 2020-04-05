@@ -1,9 +1,13 @@
 import discord
 import asyncpg
+import logging
 from enum import Enum
 from pathlib import Path
 
 from . import pg_cmds
+from .util import exceptions
+
+dblog = logging.getLogger("pgDB")
 
 class DBReturns(Enum):
     SUCCESS =       "Success!"
@@ -14,7 +18,6 @@ class DBReturns(Enum):
     
     def __str__(self):
         return self.value
-
 
 class pg_db:
     def __init__(self, user, pwrd, name, host): 

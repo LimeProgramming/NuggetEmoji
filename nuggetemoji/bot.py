@@ -18,13 +18,14 @@ from .util import exceptions
 from .util.misc import Response
 from .util import gen_embed as GenEmbed
 from .util import fake_objects as FakeOBJS
-from .util.class_decorators import owner_only
-from .db_cmds import DatabaseCmds as pgCmds
+from .util.allowed_mentions import AllowedMentions
+
 
 
 
 import dblogin
 import asyncpg
+from .db_cmds import DatabaseCmds as pgCmds
 
 import aiosqlite
 from .test_db import sqlite_db
@@ -100,6 +101,7 @@ class NuggetEmoji(commands.Bot):
         self.config = Config()
         self.init_ok = True
         self.exit_signal = None
+        self.AllowedMentions = AllowedMentions(everyone=False)
 
       # ---------- Store startup timestamp ----------
         self.start_timestamp = datetime.datetime.utcnow()
@@ -107,8 +109,9 @@ class NuggetEmoji(commands.Bot):
       # ---------- Store a list of all the legacy bot commands ----------
         self.bot_oneline_commands = ["restart", "shutdown", 'reboot']
 
-        super().__init__(command_prefix='?', description=description,
-                         pm_help=None, help_attrs=dict(hidden=True), fetch_offline_members=False)
+        super().__init__(command_prefix='?',            description=description,
+                         pm_help=None,                  help_attrs=dict(hidden=True), 
+                         fetch_offline_members=False,   )#allowed_mentions=discord.AllowedMentions(everyone=False))
 
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
 
@@ -138,63 +141,12 @@ class NuggetEmoji(commands.Bot):
 
 
 # ======================================== Bot on Ready Funcs ========================================
-    async def pgdb_on_ready(self):
 
-        # ===== LOG INTO DATABASE
-        credentials = {"user": dblogin.user, "password": dblogin.pwrd, "database": dblogin.name, "host": dblogin.host}
-        try:
-            self.db = await asyncpg.create_pool(**credentials)
-        except Exception as e:
-            dblog.critical(f"There was an error connecting to the database {e}\nPlease make sure the login information in dblogin.ini is correct.")
-
-            self.exit_signal = exceptions.TerminateSignal
-            await self.logout()
-            await self.close()
-
-        # ===== CREATE DATABASE COMPOSITE TYPES
-        database_types=[
-            {'exists':'EXISTS_DISCORD_IMG',         'create':'CREATE_DISCORD_IMG',        'log':'Created discord image type.'}
-        ]
-
-        dblog.info(" Checking PG database types.")
-
-        for dbTypes in database_types:
-            if not await self.db.fetchval(getattr(pgCmds, dbTypes['exists'])):
-                await self.db.execute(getattr(pgCmds, dbTypes['create']))
-                dblog.info(f" {dbTypes['log']}")
-
-        # ===== CREATE DATABASE TABLES AT STARTUP
-        database_tables = [
-            {'exists':'EXISTS_WEBHOOK_TABLE',       'create':'CREATE_WEBHOOK_TABLE',        'log':'Create webhook table.'},
-            {'exists':'EXISTS_EMOJI_TABLE',         'create':'CREATE_EMOJI_TABLE',          'log':'Create emoji table.'},
-            {'exists':'EXISTS_VAULT_TABLE',         'create':'CREATE_VAULT_TABLE',          'log':'Create vault table.'}
-        ]
-
-        dblog.info(" Checking PG database tables.")
-
-        for dbTables in database_tables:
-            if not await self.db.fetchval(getattr(pgCmds, dbTables['exists'])):
-                await self.db.execute(getattr(pgCmds, dbTables['create']))
-                dblog.info(f" {dbTables['log']}")
-
-        # ===== CREATE DATABASE TRIGGERS
-        database_triggers = [
-            {'exists':'EXISTS_EMOJIVAULT_TRIGGER',      'create':'CREATE_EMOJIVAULT_TRIGGER',       'log':'Created Emoji Vault trigger.'}
-        ]
-        
-        dblog.info(" Checking PG database triggers.")
-
-        for dbTrig in database_triggers:
-            if not await self.db.fetchval(getattr(pgCmds, dbTrig['exists'])):
-                await self.db.execute(getattr(pgCmds, dbTrig['create']))
-                dblog.info(f" {dbTrig['log']}")
-
-        return 
 
 
 # ======================================== Bot Events ========================================
     async def on_ready(self):
-        print('\rConnected!  NuggetEmoji va0.2\n')
+        print('\rConnected!  NuggetEmoji va0.3\n')
 
         self.safe_print("--------------------------------------------------------------------------------")
         self.safe_print("Bot:   {0.name}#{0.discriminator} \t\t| ID: {0.id}".format(self.user))
@@ -300,10 +252,6 @@ class NuggetEmoji(commands.Bot):
             if self.config.delete_invoking:
                 await ctx.message.delete()
 
-        #elif isinstance(error, discord.ext.commands.errors.CheckFailure):
-        #    if self.config.delete_invoking:
-        #        await ctx.message.delete()
-
         else:
             print('Ignoring exception in {}'.format(ctx.invoked_with), file=sys.stderr)
             print(error)
@@ -316,53 +264,6 @@ class NuggetEmoji(commands.Bot):
         with open("data/Do Not Delete", 'w') as f:
             f.write("Unless you want the bot to reinitialize")
 
-    async def on_message(self, message):
-
-        # ===== WAIT FOR THE BOT TO BE FINISHED SETTING UP
-        await self.wait_until_ready()
-
-        # ===== IGNORE OWN MESSAGES, BOT SHOULD DO THIS AUTOMATICALLY ANYWAY.
-        if message.author == self.user:
-            return
-
-       # ---------- LEGACY BOT CLASS COMMANDS ----------
-        if message.guild and message.guild.id == self.config.target_guild_id and message.clean_content.startswith(self.config.command_prefix):
-        
-            command = message.clean_content[len(self.config.command_prefix):].lower().split(" ")
-
-            if (len(command) > 1) and command[0] in self.bot_oneline_commands:
-                return
-
-            handler = getattr(self, "cmd_" + command[0], None)
-
-            if not handler:
-                return
-
-            try:
-                r = await handler(message)
-                
-                if isinstance(r, Response):
-                    if r.reply:
-
-                        if r.content and r.embed:
-                            await self.send_msg(message.channel, content=r.content, embed=r.embed, expire_in=r.delete_after)
-
-                        elif r.content:
-                            await self.send_msg(message.channel, content=r.content, expire_in=r.delete_after)
-                        
-                        elif r.embed:
-                            await self.send_msg(message.channel, embed=r.embed, expire_in=r.delete_after)
-
-                    await self.delete_msg(message)
-
-            except exceptions.Signal:
-                raise
-            
-            except Exception as e:
-                print(e)   
-
-       # ---------- commands.Bot COMMANDS ----------
-        await NuggetEmoji.bot.process_commands(message)
 
 # ======================================== Custom Bot Class Functions ========================================
   # -------------------- Safe Send/Delete Messages --------------------
@@ -478,6 +379,53 @@ class NuggetEmoji(commands.Bot):
                 self.safe_print(f"[Error] [new_members] Cannot send message to channel {ch_id}, invalid channel?")
 
         return fakemsg
+
+    @asyncio.coroutine
+    async def send_msg2(self, 
+        dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, 
+        content=None, 
+        embed=None, 
+        tts=False, 
+        delete_after=0,
+        also_delete:discord.Message =None, 
+        allowed_mentions=None,
+        quiet=True):
+        
+      # ---------- Sort out dest arg ---------- 
+        channel = await self._get_channel(dest)
+
+      # ---------- Sort out Allowed Mentions ---------- 
+        if allowed_mentions is not None:
+            if self.AllowedMentions is not None:
+                allowed_mentions = self.AllowedMentions.merge(allowed_mentions).to_dict()
+            else:
+                allowed_mentions = allowed_mentions.to_dict()
+        else:
+            allowed_mentions = self.AllowedMentions.to_dict()
+
+      # ---------- Sort out dest arg ---------- 
+        msg = None
+
+        try:
+            data = await self.send_msg_rqt(channel.id, content, tts=tts, embed=embed, allowed_mentions=allowed_mentions)
+            msg = self._connection.create_message(channel=channel, data=data)
+
+            if also_delete and isinstance(also_delete, discord.Message):
+                asyncio.ensure_future(self.__del_msg_later(also_delete, delete_after))
+
+            if delete_after:
+                asyncio.ensure_future(self.__del_msg_later(msg, delete_after))
+
+        except discord.Forbidden:
+            if not quiet:
+                self.safe_print("[Warning] Cannot send message to {dest.name}, no permission")
+
+        except discord.NotFound:
+            if not quiet:
+                self.safe_print("[Warning] Cannot send message to {dest.name}, invalid channel?")
+
+        return msg
+
 
     @asyncio.coroutine
     async def delete_msg(self, message:discord.Message, reason:str = None, *, delay:float = None, quiet=False):
@@ -678,118 +626,6 @@ class NuggetEmoji(commands.Bot):
         return
 
     @asyncio.coroutine
-    async def execute_webhook2(self, channel:discord.TextChannel, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, embed:discord.Embed = None, embeds = None, files = None, tts:bool = False):
-        '''
-        Custom discord.Webhook executer. 
-        Using this webhook executer forces the discord.py libaray to POST a webhook using the http.request function rather than the request function built into WebhookAdapter.
-        The big difference between the two functions is that http.request preforms the POST with an "Authorization" header which allows for the use of emojis and other bot level privilages.
-        
-        Parameters
-        ------------
-        webhook :class:`discord.Webhook`
-            The webhook you want to POST to.
-        content :class:`str`
-            Content of the POST message
-        username Optional[:class:`str`]
-            Username to post the webhook under. Overwrites the default name of the webhook.
-        avatar_url Optional[:class:`discord.Asset`]
-            Avatar for the webhook poster. Overwrites the default avatar of the webhook.
-        embed Optional[:class:`discord.Embed`]
-            discord Embed opject to post.
-        embeds List[:class:`discord.Embed`]
-            List of discord Embed object to post, maximum of 10 allowable.
-        tts :class:`bool`
-            Indicates if the message should be sent using text-to-speech.
-        '''
-        # ---------- SORTOUT THE PAYLOAD ----------
-        if embeds is not None and embed is not None:
-            raise discord.errors.InvalidArgument('Cannot mix embed and embeds keyword arguments.')
-
-        payload = {
-            'tts':tts,
-            "allowed_mentions": {
-                "parse": ["everyone"],
-                "users": [],
-                "roles": [654438136629166140]
-            }
-        }
-
-        if content is not None:
-            payload['content'] = str(content)#.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
-        
-        if username:
-            payload['username'] = username
-
-        if avatar_url:
-            payload['avatar_url'] = str(avatar_url)
-
-        if embeds is not None:
-            if len(embeds) > 10:
-                raise discord.errors.InvalidArgument('embeds has a maximum of 10 elements.')
-            payload['embeds'] = [e.to_dict() for e in embeds]
-
-        if embed is not None:
-            payload['embeds'] = [embed.to_dict()]
-
-        # ---------- GET WEBHOOK FROM DB ----------
-        r = await self.db.fetchrow(pgCmds.GET_WEBHOOK, channel.id)
-
-        if not r:
-            ava = await self.user.avatar_url_as(format="png", size=128).read()
-            newWebhook = await channel.create_webhook(name='StoredInNuggetBot', avatar=ava, reason='Used by NuggetBot to post webhooks.')
-
-            webhook_id = newWebhook.id
-            webhook_token = newWebhook.token
-
-            await self.db.execute(pgCmds.SET_WEBHOOK, webhook_id, webhook_token, channel.id)
-
-        else: webhook_id, webhook_token = r
-
-        # ---------- SORT OUT FILES ----------
-        cleanup = None
-        cleanup_files = [] 
-
-        form = aiohttp.FormData()
-        form.add_field('payload_json', discord.utils.to_json(payload))
-
-        if files is not None:
-            for i, file in enumerate(files, start=1):
-                if isinstance(file, discord.message.Attachment):
-                    filename = file.filename
-                    fp = await file.read()
-
-                elif isinstance(file, discord.File):
-                    cleanup_files.append(file)
-                    filename = file.filename, 
-                    fp = file.fp
-                
-                elif isinstance(file, Iterable):
-                    filename = file[0]
-                    fp = file[1]        
-
-                form.add_field('file%i' % i, fp, filename=filename, content_type='application/octet-stream')
-        
-            def _anon():
-                for f in cleanup_files:
-                    f.close()
-
-            cleanup = _anon
-
-        try:
-            await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), data=form)
-        
-        except discord.errors.HTTPException as e:
-            print(e)
-            print("http")
-            pass
-
-        finally:
-            if cleanup:
-                cleanup()
-
-        return
-
-    @asyncio.coroutine
     async def execute_webhook3(self, channel:discord.TextChannel, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, embed:discord.Embed = None, embeds = None, files = None, tts:bool = False):
         '''
         Custom discord.Webhook executer. 
@@ -903,43 +739,16 @@ class NuggetEmoji(commands.Bot):
 
         return
 
-  # -------------------- Emoji Stuff --------------------
-    
-    @asyncio.coroutine
-    async def create_storage_server(self):
-        server_name = ""
 
-        # ----- Generate Random Name (for now)
-        i = random.randint(5, 20)
-
-        while i > 0:
-            j = random.choice(['a','b','c','d','e','f','g','h','i','j','k','l','n','m','o','p','q','r','s','t','u','v','w','x','y','z'])
-
-            if random.choice([True, False]):
-                j = j.upper()
-            
-            server_name = server_name + j
-
-            i = i - 1
-
-        # ----- Pick a Random Icon
-        icon = random.choice([x for x in pathlib.Path(r"nuggetemoji\plugins\images\storageservericons").iterdir() if x.is_file() and x.suffix in ['.png', '.webp', '.jpeg']])
-
-        # ----- Create Guild
-        await self.create_guild(
-            name=server_name,
-            region=discord.VoiceRegion.eu_central,
-            icon=icon.read_bytes()
-        )
 
 # ======================================== Misc ========================================
+
     def safe_print(self, content, *, end='\n', flush=True):
         """Custom function to allow printing to console with less issues from asyncio"""
 
         sys.stdout.buffer.write((content + end).encode('utf-8', 'replace'))
         if flush:
             sys.stdout.flush()
-
 
     async def __split_list(self, arr, size=100):
         """Custom function to break a list or string into an array of a certain size"""
@@ -992,59 +801,86 @@ class NuggetEmoji(commands.Bot):
     async def _get_owner(self):
         return (await self.application_info()).owner
 
-
-#======================================== Owner Commands ========================================
-    @owner_only
-    async def cmd_restart(self, msg):
+    async def _get_channel(self, dest):
         """
-        Useage:
-            [prefix]restart
-        [Bot Owner] Restarts the bot.
+        This just takes common ABC messageables and returns the channel.
+        Also suppors channel ids in the form of int's and strings.
         """
-        embed= await GenEmbed.ownerRestart(msg=msg)
+        channel = None 
 
-        await self.send_msg(msg.channel, embed=embed)
-        await self.delete_msg(msg)
-        self.exit_signal = exceptions.RestartSignal()
-
-        await self.test_db.close()
-        #await self.db.close()
-
-        raise exceptions.RestartSignal
-
-    @owner_only
-    async def cmd_reboot(self, msg):
-        """
-        Useage:
-            [prefix]restart
-        [Bot Owner] Restarts the bot.
-        """
-        embed= await GenEmbed.ownerRestart(msg=msg)
-
-        await self.send_msg(msg.channel, embed=embed)
-        await self.delete_msg(msg)
-        self.exit_signal = exceptions.RestartSignal()
-
-        await self.test_db.close()
-        #await self.db.close()
+        if isinstance(dest, discord.Message):
+            channel = dest.channel 
         
-        raise exceptions.RestartSignal
-
-    @owner_only
-    async def cmd_shutdown(self, msg):
-        """
-        Useage:
-            [prefix]shutdown
-        [Bot Owner] Shuts down the bot.
-        """
-
-        embed = await GenEmbed.ownerShutdown(msg)
-
-        await self.send_msg(msg.channel, embed=embed)
-        await self.delete_msg(msg)
-        self.exit_signal = exceptions.TerminateSignal()
+        elif isinstance(dest, discord.TextChannel):
+            channel = dest
         
-        await self.test_db.close()
-        #await self.db.close()
+        elif isinstance(dest, discord.ext.commands.Context):
+            channel = dest.channel
+        
+        elif type(dest) is int:
+            channel = self.get_channel(dest)
+            if channel is None:
+                try:
+                    channel = self.fetch_channel(dest)
+                except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden):
+                    channel = None 
 
-        raise exceptions.TerminateSignal
+        elif type(dest) is str and dest.isdigit():
+            dest = int(dest)
+            channel = self.get_channel(dest)
+            if channel is None:
+                try:
+                    channel = self.fetch_channel(dest)
+                except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden):
+                    channel = None 
+
+        return channel
+
+# ======================================== HTTP Replacements ========================================
+# Lets be honest, Rapptz is too busy being a weeabo to make these any good.
+
+    async def send_msg_rqt(self, channel_id, content, *, tts=False, embed=None, nonce=None, allowed_mentions=None):
+
+        r = discord.http.Route('POST', '/channels/{channel_id}/messages', channel_id=channel_id)
+
+        payload = {}
+
+        if content:
+            payload['content'] = content
+
+        if allowed_mentions:
+            payload['allowed_mentions'] = allowed_mentions
+
+        if tts:
+            payload['tts'] = True
+
+        if embed:
+            payload['embed'] = embed
+
+        if nonce:
+            payload['nonce'] = nonce
+
+        return await self.bot.http.request(r, json=payload)
+
+    def send_files(self, channel_id, *, files, content=None, tts=False, embed=None, nonce=None):
+        r = discord.http.Route('POST', '/channels/{channel_id}/messages', channel_id=channel_id)
+
+        form = aiohttp.FormData()
+
+        payload = {'tts': tts}
+        if content:
+            payload['content'] = content
+        if embed:
+            payload['embed'] = embed
+        if nonce:
+            payload['nonce'] = nonce
+
+        form.add_field('payload_json', discord.utils.to_json(payload))
+        if len(files) == 1:
+            file = files[0]
+            form.add_field('file', file.fp, filename=file.filename, content_type='application/octet-stream')
+        else:
+            for index, file in enumerate(files):
+                form.add_field('file%s' % index, file.fp, filename=file.filename, content_type='application/octet-stream')
+
+        return self.bot.http.request(r, data=form, files=files)

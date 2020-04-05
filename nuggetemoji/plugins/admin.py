@@ -8,6 +8,7 @@ from functools import partial
 from discord.ext import commands
 from .util import checks, cogset
 from .util.misc import RANDOM_DISCORD_COLOUR, AVATAR_URL_AS, GUILD_URL_AS
+from nuggetemoji.util.allowed_mentions import AllowedMentions
 
 class Admin(commands.Cog):
     def __init__(self, bot):
@@ -18,8 +19,8 @@ class Admin(commands.Cog):
 
     @asyncio.coroutine
     async def cog_before_invoke(self, ctx):
-        if "sends webhook" in (ctx.command.help).lower():
-            return
+        #if "sends webhook" in (ctx.command.help).lower():
+        #    return
 
         await ctx.channel.trigger_typing()
 
@@ -91,12 +92,13 @@ class Admin(commands.Cog):
 
         msg_content = msg_content + '\n'.join([':white_small_square:'+ f'<@&{i}>' for i in a_roles])
 
-        await self.bot.execute_webhook3(
-            channel=        ctx.channel,
-            content=        msg_content,
-            username=       self.bot.user.name,
-            avatar_url=     AVATAR_URL_AS(self.bot.user, format="png", size=128)
-        )
+        await self.bot.send_msg2(ctx, content=msg_content, allowed_mentions=AllowedMentions(roles=False))
+        #await self.bot.execute_webhook3(
+        #    channel=        ctx.channel,
+        #    content=        msg_content,
+        #    username=       self.bot.user.name,
+        #    avatar_url=     AVATAR_URL_AS(self.bot.user, format="png", size=128)
+        #)
 
         return 
 

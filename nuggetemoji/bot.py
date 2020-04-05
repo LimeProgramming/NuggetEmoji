@@ -1,16 +1,13 @@
-import re
+#import re
 import sys
-import json
+#'import json
 import random
-import dblogin
 import asyncio
 import aiohttp
 import discord
-import asyncpg
 import logging
 import pathlib
 import datetime
-import aiosqlite
 import traceback
 from typing import Union
 from discord.ext import commands
@@ -23,8 +20,15 @@ from .util import gen_embed as GenEmbed
 from .util import fake_objects as FakeOBJS
 from .util.class_decorators import owner_only
 from .db_cmds import DatabaseCmds as pgCmds
-#from .sqlite_cmds import DatabaseCmds as sqliteCmds
+
+
+
+import dblogin
+import asyncpg
+
+import aiosqlite
 from .test_db import sqlite_db
+
 
 logging.basicConfig(level=logging.INFO)
 dblog = logging.getLogger("pgDB")
@@ -209,10 +213,10 @@ class NuggetEmoji(commands.Bot):
         self.safe_print(r"--------------------------------------------------------------------------------")
         self.safe_print("\n")
 
-        await self.pgdb_on_ready()
+        #await self.pgdb_on_ready()
 
         self.test_db = sqlite_db()
-        await self.test_db.bot_ready()
+        await self.test_db.connect()
 
         await self.test_db.create_webhook_table()
         await self.test_db.create_guild_settings_table()
@@ -221,46 +225,9 @@ class NuggetEmoji(commands.Bot):
         if not pathlib.Path("data/Do Not Delete").exists():
             await self.first_run(owner)
 
-        # ----- Update Emoji DB
-        for guild in self.bot.guilds:
-            emojis = await guild.fetch_emojis()
-
-            for moji in emojis:
-                await self.db.execute(pgCmds.ADD_EMOJI, moji.id, moji.name, moji.animated, moji.guild_id, None, moji.created_at, moji.user.id)
-                await asyncio.sleep(0.1)
-
-        # ----- Find Dupe Emojis in the database
-        dbret = await self.db.fetch(pgCmds.GET_EMOJI_DUPE)
-        dupes = dict()
-
-        for i in dbret:
-            if not i['name'] in dupes.keys():
-                dupes[i['name']] = list()
-            
-            dupes[i['name']].append((i['e_id'], i['animated']))
-        
-        print(dupes)
-
-        # ----- Dupe Emojis have been Found
-        if len(dupes) > 0:
-            for i in dupes:
-
-                warning_msg = f"{len(dupes[i])} duplicates for emoji named {i} have been found"
-
-                for j in dupes[i]:
-                    print(j)
-                    warning_msg = warning_msg + f'\n <{"a" if j[1] else ""}:{i}:{j[0]}>'
-
-                print(warning_msg)
-                #await owner.send(warning_msg)
-
-                
-
-
-
 
     async def on_resume(self):
-        await self.test_db.bot_ready()
+        await self.test_db.connect()
 
         # ===== If the bot is still setting up
         await self.wait_until_ready()
@@ -268,7 +235,7 @@ class NuggetEmoji(commands.Bot):
         self.safe_print("Bot resumed")
 
     async def on_disconnect(self):
-        await self.test_db.bot_close()
+        await self.test_db.close()
         return
 
     async def on_error(self, event, *args, **kwargs):
@@ -279,7 +246,7 @@ class NuggetEmoji(commands.Bot):
             print(ex.message)
             
             await asyncio.sleep(2)
-            await self.db.close()
+            #await self.db.close()
             await self.logout()
             await self.close()
 
@@ -292,15 +259,16 @@ class NuggetEmoji(commands.Bot):
                 elif type(ex.original) == exceptions.TerminateSignal:
                     self.exit_signal = exceptions.TerminateSignal()
 
-                await self.test_db.bot_close()
-                await self.db.close()
+                await self.test_db.close()
+                #await self.db.close()
 
                 await self.logout()
                 await self.close()
 
         elif issubclass(ex_type, exceptions.Signal):
             self.exit_signal = ex_type
-            await self.db.close()
+            await self.test_db.close()
+            #await self.db.close()
             await self.logout()
             await self.close()
 
@@ -1039,8 +1007,8 @@ class NuggetEmoji(commands.Bot):
         await self.delete_msg(msg)
         self.exit_signal = exceptions.RestartSignal()
 
-        await self.test_db.bot_close()
-        await self.db.close()
+        await self.test_db.close()
+        #await self.db.close()
 
         raise exceptions.RestartSignal
 
@@ -1057,8 +1025,8 @@ class NuggetEmoji(commands.Bot):
         await self.delete_msg(msg)
         self.exit_signal = exceptions.RestartSignal()
 
-        await self.test_db.bot_close()
-        await self.db.close()
+        await self.test_db.close()
+        #await self.db.close()
         
         raise exceptions.RestartSignal
 
@@ -1076,7 +1044,7 @@ class NuggetEmoji(commands.Bot):
         await self.delete_msg(msg)
         self.exit_signal = exceptions.TerminateSignal()
         
-        await self.test_db.bot_close()
-        await self.db.close()
+        await self.test_db.close()
+        #await self.db.close()
 
         raise exceptions.TerminateSignal

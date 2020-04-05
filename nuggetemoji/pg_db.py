@@ -1,9 +1,9 @@
 import discord
-import aiosqlite
+import asyncpg
 from enum import Enum
 from pathlib import Path
 
-DBPATH = Path.cwd() / "data" / "bot.db"
+from . import pg_cmds
 
 class DBReturns(Enum):
     SUCCESS =       "Success!"
@@ -15,90 +15,55 @@ class DBReturns(Enum):
     def __str__(self):
         return self.value
 
-class sqlite_db:
-    def __init__(self): 
+
+class pg_db:
+    def __init__(self, user, pwrd, name, host): 
+        self.user = user 
+        self.pwrd = pwrd
+        self.name = name 
+        self.host = host
         #I do nothing lOL
         return
 
     async def connect(self):
-        self.conn = await aiosqlite.connect(str(DBPATH))
-        self.conn.row_factory = aiosqlite.Row
-        self.cursor = await self.conn.cursor()
+
+        # ===== LOG INTO DATABASE
+        credentials = {"user": self.user, "password": self.pwrd, "database": self.name, "host": self.host}
+        try:
+            self.conn = await asyncpg.create_pool(**credentials)
+        except Exception as e:
+            dblog.critical(f"There was an error connecting to the database {e}\nPlease make sure the login information in dblogin.ini is correct.")
+
+            self.exit_signal = exceptions.TerminateSignal
+
         return
 
     async def close(self):
-        try:
-            await self.conn.close()
-        except ValueError:
-            pass
-        return
+        await self.conn.close()
+
 
   # ============================== WEBHOOKS TABLE ==============================
     # Adds a guild to the guilds table
     async def create_webhook_table(self):
-        sql = """ 
-        CREATE TABLE IF NOT EXISTS "webhooks" (
-            "id"        BIGINT,
-            "token"     VARCHAR(100),
-            "ch_id"     BIGINT,
-            "timestamp" DATETIME        DEFAULT (DATETIME('now', 'utc')),
-            PRIMARY KEY("id")
-        );"""
-
-        await self.cursor.execute(sql)
-        await self.conn.commit()
+        await self.conn.execute(pg_cmds.CREATE_WEBHOOK_TABLE)
         return
 
     async def get_webhook(self, ch_id):
-        sql = "SELECT id, token FROM webhooks WHERE ch_id = CAST(? as BIGINT) LIMIT 1" 
-
-        await self.cursor.execute(sql, (ch_id,))
-        
-        fetched = await self.cursor.fetchone()
+        fetched = await self.conn.fetchrow(pg_cmds.GET_WEBHOOK, ch_id)
         return fetched
 
     async def set_webhook(self, id, token, ch_id):
-
-        sql = """ 
-        INSERT INTO webhooks(
-            id, token, ch_id
-            )
-        VALUES(
-            CAST(:id AS BIGINT), CAST(:token AS VARCHAR(100)), CAST(:ch_id AS BIGINT)
-            )
-        ON CONFLICT(id)
-            DO UPDATE
-            SET 
-                id = 		    CAST(:id AS BIGINT),
-                token = 		CAST(:token AS VARCHAR(100)),
-                timestamp =		datetime('now', 'utc')
-
-            WHERE 
-                webhooks.ch_id = 	    CAST(:ch_id AS BIGINT);
-        """
-
-        await self.cursor.execute(sql, {"id":id, "token":token, "ch_id":ch_id})
-        await self.conn.commit()
+        await self.conn.execute(pg_cmds.SET_WEBHOOK, id, token, ch_id)
         return
 
 
   # ============================== GUILD TABLE ==============================
     # Adds a guild to the guilds table
     async def create_guild_settings_table(self):
-        sql = """ 
-        CREATE TABLE IF NOT EXISTS "guild_settings" (
-            "guild_id"          BIGINT,
-            "prefix"            VARCHAR(100)        DEFAULT ('?'),
-            "allowed_roles"     TEXT                DEFAULT (''),
-            PRIMARY KEY("guild_id")
-        );"""
-
-        await self.cursor.execute(sql)
-        await self.conn.commit()
+        await self.conn.execute(pg_cmds.CREATE_GUILD_SETTINGS_TABLE)
         return
 
     async def get_guild_allowed_roles(self, guild_id):
-        sql = "SELECT allowed_roles FROM guild_settings WHERE guild_id = CAST(:guild_id as BIGINT) LIMIT 1;" 
 
       # ---------- Sort out of the guild arg ----------
         if isinstance(guild_id, discord.Guild):
@@ -116,19 +81,11 @@ class sqlite_db:
             return DBReturns.INVALIDGUILD 
 
       # ---------- Get exsiting data ----------
-        await self.cursor.execute(sql, {"guild_id":guild_id})
-        fetched = await self.cursor.fetchone()
+        fetched = await self.conn.fetchval(pg_cmds.GET_GUILD_ALLOWED_ROLES, guild_id)
 
-        return [int(i) for i in fetched['allowed_roles'].split(',') if i.isdigit()]
+        return fetched
 
     async def set_guild_allowed_roles(self, roles, guild_id):
-        sql = """ 
-        UPDATE guild_settings
-        SET 
-            allowed_roles =     CAST(:role_ids AS TEXT)
-        WHERE 
-            guild_id =          CAST(:guild_id AS BIGINT);
-        """
 
       # ---------- Sort out of the guild arg ----------
         if isinstance(guild_id, discord.Guild):
@@ -138,7 +95,7 @@ class sqlite_db:
             guild_id = guild_id.strip()
 
             if not guild_id.isdigit():
-                return DBReturns.INVALIDGUILD
+                return DBReturns.INVALIDGUILD 
 
             guild_id =  int(guild_id)
         
@@ -165,16 +122,11 @@ class sqlite_db:
         if len(role_ids) == 0:
             return DBReturns.INVALIDROLE 
 
-        role_ids = ','.join(role_ids)
-
       # ---------- Set new data ----------
-        await self.cursor.execute(sql, {"role_ids":role_ids, "guild_id":guild_id})
-        await self.conn.commit()
-        return
+        await self.conn.execute(pg_cmds.SET_GUILD_ALLOWED_ROLES, role_ids, guild_id)
+        return DBReturns.SUCCESS
 
     async def add_guild_allowed_role(self, role, guild_id):
-
-        sql = "SELECT allowed_roles FROM guild_settings WHERE guild_id = CAST(:guild_id as BIGINT) LIMIT 1;" 
 
       # ---------- Sort out of the guild arg ----------
         if isinstance(guild_id, discord.Guild):
@@ -191,19 +143,6 @@ class sqlite_db:
         if not type(guild_id) is int:
             return DBReturns.INVALIDGUILD 
 
-      # ---------- Get exsiting data ----------
-        await self.cursor.execute(sql, {"guild_id":guild_id})
-        fetched = await self.cursor.fetchone()
-
-      # ---------- Set new sql query ----------
-        sql = """ 
-        UPDATE guild_settings
-        SET 
-            allowed_roles =     CAST(:role_ids AS TEXT)
-        WHERE 
-            guild_id =          CAST(:guild_id AS BIGINT);
-        """
-
       # ---------- Sort out of the role arg ----------
         if isinstance(role, discord.Role):
             if not role.guild.id == guild_id:
@@ -219,36 +158,18 @@ class sqlite_db:
         elif type(role) is int:
             role = str(role)
 
-        if not fetched['allowed_roles']:
-            role_ids = role 
-        else:
-            
-            if role in [int(i) for i in fetched['allowed_roles'].split(',') if i.isdigit()]:
-                return DBReturns.ROLEDUPLICIT
+      # ---------- Get exsiting data ----------
+        fetched = await self.conn.fetchval(pg_cmds.GET_GUILD_ALLOWED_ROLES, guild_id)
 
-            role_ids = fetched['allowed_roles'] + "," + role
+      # ---------- If role is already allowed ----------
+        if role in fetched:
+            return DBReturns.ROLEDUPLICIT
 
       # ---------- Set new data ----------
-        await self.cursor.execute(sql, {"role_ids":role_ids, "guild_id":guild_id})
-        await self.conn.commit()
+        await self.conn.execute(pg_cmds.APPEND_GUILD_ALLOWED_ROLE, role, guild_id)
         return DBReturns.SUCCESS
 
     async def add_guild_settings(self, guild_id, prefix):
-        sql = """ 
-        INSERT INTO guild_settings(
-            guild_id, prefix
-            )
-        VALUES(
-            CAST(:guild_id AS BIGINT), CAST(:prefix AS VARCHAR(100))
-            )
-        ON CONFLICT(guild_id)
-            DO UPDATE
-            SET
-                prefix =        '?'
-                allowed_roles=  ''
-            WHERE
-                guild_id =      :guild_id;
-        """
 
       # ---------- Sort out of the guild arg ----------
         if isinstance(guild_id, discord.Guild):
@@ -268,18 +189,10 @@ class sqlite_db:
       # ---------- Sort out the prefix arg ----------
         prefix = prefix or "?"
 
-        await self.cursor.execute(sql, {"guild_id":guild_id, 'prefix':prefix})
-        await self.conn.commit()
+        await self.conn.commit(pg_cmds.ADD_GUILD_SETTINGS, guild_id, prefix)
         return DBReturns.SUCCESS
-        
+
     async def set_guild_prefix(self, guild_id, prefix):
-        sql = """ 
-        UPDATE guild_settings
-        SET 
-            prefix =            CAST(:prefix AS VARCHAR(100))
-        WHERE 
-            guild_id =          CAST(:guild_id AS BIGINT);
-        """
 
       # ---------- Sort out of the guild arg ----------
         if isinstance(guild_id, discord.Guild):
@@ -299,6 +212,6 @@ class sqlite_db:
       # ---------- Sort out the prefix arg ----------
         prefix = prefix or "?"
 
-        await self.cursor.execute(sql, {"guild_id":guild_id, 'prefix':prefix})
-        await self.conn.commit()
+        await self.conn.execute(pg_cmds.SET_GUILD_PREFIX, guild_id, prefix)
+
         return DBReturns.SUCCESS

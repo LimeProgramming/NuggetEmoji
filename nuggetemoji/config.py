@@ -29,29 +29,28 @@ class Config:
         self.auth = ()
 
       # -------------------------------------------------- CREDENTIALS --------------------------------------------------
-        self._login_token = config.get(             'Credentials', 'Token',     fallback=ConfigDefaults.token)
-        self.owner_id=      config.getint(          'Credentials', 'Owner',     fallback=ConfigDefaults.owner_id)
+        self._login_token =     config.get(         'Credentials', 'Token',           fallback=ConfigDefaults.token)
+        self.owner_id=          config.getint(      'Credentials', 'Owner',           fallback=ConfigDefaults.owner_id)
 
       # -------------------------------------------------- BOT --------------------------------------------------
-        self.delete_invoking=   config.getboolean(  'Bot', 'DeleteInvoking',    fallback=ConfigDefaults.delete_invoking)
-        self.command_prefix=    config.get(         'Bot', 'command_prefix',    fallback=ConfigDefaults.command_prefix)
-        self.playing_game=      config.get(         'Bot', 'game',              fallback=ConfigDefaults.playing_game)
+        self.delete_invoking=   config.getboolean(  'Bot',        'DeleteInvoking',    fallback=ConfigDefaults.delete_invoking)
+        self.command_prefix=    config.get(         'Bot',        'command_prefix',    fallback=ConfigDefaults.command_prefix)
+        self.playing_game=      config.get(         'Bot',        'game',              fallback=ConfigDefaults.playing_game)
 
         #guild targetting
-        self.target_guild_id = config.getint('Guild', 'guild_id', fallback=ConfigDefaults.target_guild_id)
+        self.target_guild_id =  config.getint(      'Guild',      'guild_id',          fallback=ConfigDefaults.target_guild_id)
         
-      # -------------------------------------------------- CHANNELS --------------------------------------------------
-        self.channels = {}
+      # -------------------------------------------------- DATABASE --------------------------------------------------
 
-        self.channels['bot_log']=                       config.getint( 'Channel', 'Bot Log',         fallback=default_value)
-        self.channels['public_bot_log']=                config.getint( 'Channel', 'Public Bot Log',  fallback=default_value)
-        self.channels['feedback_id']=                   config.getint( 'Channel', 'Feedback',        fallback=default_value)
-        self.channels['reception_id']=                  config.getint( 'Channel', 'Reception',       fallback=default_value)
+        self.use_sqlite=        config.getboolean(  'Database',   'SQLite',           fallback=True)
+        self.use_postgre=       config.getboolean(  'Database',   'PostgreSQL',       fallback=False)
 
+        self.pg_login = {}
 
-        self.channels['nugget_welcome_id']=             config.getint(  'Channel', 'Welcome MSG',    fallback=default_value)
-        self.channels['entrance_gate']=                 config.getint(  'Channel', 'Entrance Gate',  fallback=default_value)
-        self.channels['public_rules_id']=               config.getint(  'Channel', 'Public Rules',   fallback=default_value)
+        self.pg_login['host']=  config.get(         'PostgreSQL', 'Host',             fallback=default_value)
+        self.pg_login['name']=  config.get(         'PostgreSQL', 'Database Name',    fallback=default_value)
+        self.pg_login['user']=  config.get(         'PostgreSQL', 'User',             fallback=default_value)
+        self.pg_login['pswd']=  config.get(         'PostgreSQL', 'Password',         fallback=default_value)
 
         self.run_checks()
 
@@ -66,6 +65,8 @@ class Config:
 
         else:
             self.auth = (self._login_token,)
+
+
 class ConfigDefaults:
     #Bot owner
     owner_id = None

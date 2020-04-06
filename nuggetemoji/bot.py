@@ -111,7 +111,7 @@ class NuggetEmoji(commands.Bot):
 
         super().__init__(command_prefix='?',            description=description,
                          pm_help=None,                  help_attrs=dict(hidden=True), 
-                         fetch_offline_members=False,   )#allowed_mentions=discord.AllowedMentions(everyone=False))
+                         fetch_offline_members=False   )#allowed_mentions=discord.AllowedMentions(everyone=False))
 
         self.aiosession = aiohttp.ClientSession(loop=self.loop)
 

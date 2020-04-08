@@ -93,7 +93,7 @@ class Test(commands.Cog):
             return
 
         # ===== Checked allowed roles in the Guild
-        allowed_roles = await self.bot.test_db.get_guild_allowed_roles(msg.guild)
+        allowed_roles = await self.bot.db.get_guild_allowed_roles(msg.guild)
 
         if allowed_roles:
             if not bool(set(allowed_roles).intersection(set([i.id for i in msg.author.roles]))):

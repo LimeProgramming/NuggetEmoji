@@ -66,7 +66,7 @@ class Admin(commands.Cog):
             await ctx.send(f"The role {role.name} is not in this guild.")
             return 
 
-        ret = await self.bot.test_db.add_guild_allowed_role(role, role.guild)
+        ret = await self.bot.db.add_guild_allowed_role(role, role.guild)
 
         await ret
 
@@ -82,7 +82,7 @@ class Admin(commands.Cog):
         Sends Webhook to avoid pinging the roles.
         """
 
-        a_roles = await self.bot.test_db.get_guild_allowed_roles(ctx.guild)
+        a_roles = await self.bot.db.get_guild_allowed_roles(ctx.guild)
 
         if not a_roles:
             await ctx.send("No roles are set to be allowed ro use animated emotes.\nTherefore\n\tEveryone is allowed to use animated emotes.")

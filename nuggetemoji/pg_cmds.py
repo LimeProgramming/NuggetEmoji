@@ -3,6 +3,7 @@ CREATE_WEBHOOK_TABLE = """
     CREATE TABLE IF NOT EXISTS webhooks (
         id          BIGINT          PRIMARY KEY,
         token       VARCHAR(100),
+        guild_id    BIGINT,
         ch_id       BIGINT,
         timestamp   TIMESTAMP       DEFAULT TIMEZONE('utc'::text, NOW())
     );
@@ -11,15 +12,16 @@ CREATE_WEBHOOK_TABLE = """
     COMMENT ON COLUMN webhooks.id IS            'ID of the webhook.';
     COMMENT ON COLUMN webhooks.token IS         'Webhook token.';
     COMMENT ON COLUMN webhooks.ch_id IS         'Channel id the webhook is pointing to.';
+    COMMENT ON COLUMN webhooks.guild_id IS      'Guild id the channel is in.';
     """
 
 GET_WEBHOOK=                "SELECT id, token FROM public.webhooks WHERE ch_id = CAST($1 as BIGINT) LIMIT 1" 
 SET_WEBHOOK="""
     INSERT INTO public.webhooks(
-        id, token, ch_id
+        id, token, guild_id, ch_id
         )
     VALUES(
-        CAST($1 AS BIGINT), CAST($2 AS VARCHAR(100)), CAST($3 AS BIGINT)
+        CAST($1 AS BIGINT), CAST($2 AS VARCHAR(100)), CAST($3 AS BIGINT), CAST($4 AS BIGINT)
         )
     ON CONFLICT(id)
         DO UPDATE
@@ -72,13 +74,11 @@ ADD_GUILD_SETTINGS = """
     VALUES(
         CAST($1 AS BIGINT), CAST($2 AS VARCHAR(100))
         )
-    ON CONFLICT(guild_id)
+    ON CONFLICT (guild_id)
         DO UPDATE
         SET 
-            prefix =        '?'
-            allowed_roles=  ARRAY[]::BIGINT[]
-        WHERE
-            guild_id =      $1;
+            prefix =        '?',
+            allowed_roles = ARRAY[]::BIGINT[];
     """
 
 SET_GUILD_PREFIX = """ 
@@ -88,3 +88,8 @@ SET_GUILD_PREFIX = """
     WHERE 
         guild_id =          CAST($1 AS BIGINT);
     """
+
+EXISTS_GUILD_DATABASE = "SELECT EXISTS (SELECT guild_id FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT));"
+
+GET_ALL_GUILD_IDS = "SELECT guild_id FROM public.guild_settings;"
+REMOVE_GUILD_INFO = "DELETE FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT);"

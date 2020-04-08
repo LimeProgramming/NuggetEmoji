@@ -36,9 +36,6 @@ class Config:
         self.delete_invoking=   config.getboolean(  'Bot',        'DeleteInvoking',    fallback=ConfigDefaults.delete_invoking)
         self.command_prefix=    config.get(         'Bot',        'command_prefix',    fallback=ConfigDefaults.command_prefix)
         self.playing_game=      config.get(         'Bot',        'game',              fallback=ConfigDefaults.playing_game)
-
-        #guild targetting
-        self.target_guild_id =  config.getint(      'Guild',      'guild_id',          fallback=ConfigDefaults.target_guild_id)
         
       # -------------------------------------------------- DATABASE --------------------------------------------------
 
@@ -50,7 +47,7 @@ class Config:
         self.pg_login['host']=  config.get(         'PostgreSQL', 'Host',             fallback=default_value)
         self.pg_login['name']=  config.get(         'PostgreSQL', 'Database Name',    fallback=default_value)
         self.pg_login['user']=  config.get(         'PostgreSQL', 'User',             fallback=default_value)
-        self.pg_login['pswd']=  config.get(         'PostgreSQL', 'Password',         fallback=default_value)
+        self.pg_login['pwrd']=  config.get(         'PostgreSQL', 'Password',         fallback=default_value)
 
         self.run_checks()
 
@@ -66,6 +63,31 @@ class Config:
         else:
             self.auth = (self._login_token,)
 
+      # ---------- Default to use sqlite
+        if not self.use_postgre and not self.use_sqlite:
+          self.use_sqlite = True
+
+        if self.use_sqlite and self.use_postgre:
+          raise HelpfulError(
+            'Both SQLite and PostgreSQL are set to be used in config.ini',
+            'Bot cannot use both services, please select only one.',
+            preface=self._confpreface
+          )
+
+      # ---------- Make sure theres postgre login info
+        if self.use_postgre:
+          if not all(self.pg_login.values()):
+            raise HelpfulError(
+              'Not all PostgreSQL login infomation was provided.',
+              'If PostgreSQL is desired please fill in the required login information for the PostgreSQL server or else use SQLite.',
+              preface=self._confpreface
+            )
+          
+          # ---------- Clean up login info
+          for x in self.pg_login:
+            self.pg_login[x] = self.pg_login[x].replace("'", "").replace("\"", "")
+
+
 
 class ConfigDefaults:
     #Bot owner
@@ -77,17 +99,3 @@ class ConfigDefaults:
     command_prefix = '!'
     playing_game = ''
     delete_invoking = False
-
-
-    #guild targetting
-    target_guild_id = None
-    servey_channel_id = None
-    dyno_archive_id = None
-    reception_id = None
-
-    #Roles
-    admin_role = 'Admin'
-    mod_role = 'Moderator'
-    tmod_role = 'Trainee'
-    user_role = 'Core'
-    newuser_role = 'Fresh'

@@ -6,11 +6,12 @@ from pathlib import Path
 DBPATH = Path.cwd() / "data" / "bot.db"
 
 class DBReturns(Enum):
-    SUCCESS =       "Success!"
-    ROLEDUPLICIT =  "Role is already allowed."
-    INVALIDGUILD =  "Guild data is invalid."
-    INVALIDROLE  =  "Role data is invalid."
-    ROLENOTGUILD =  "Role is not in this guild/server."
+    SUCCESS =           "Success!"
+    ROLEDUPLICIT =      "Role is already allowed."
+    INVALIDGUILD =      "Guild data is invalid."
+    INVALIDCHANNEL =    "Channel data is invalid."
+    INVALIDROLE  =      "Role data is invalid."
+    ROLENOTGUILD =      "Role is not in this guild/server."
     
     def __str__(self):
         return self.value
@@ -41,6 +42,7 @@ class sqlite_db:
             "id"        BIGINT,
             "token"     VARCHAR(100),
             "ch_id"     BIGINT,
+            "guild_id"  BIGINT,
             "timestamp" DATETIME        DEFAULT (DATETIME('now', 'utc')),
             PRIMARY KEY("id")
         );"""
@@ -57,14 +59,14 @@ class sqlite_db:
         fetched = await self.cursor.fetchone()
         return fetched
 
-    async def set_webhook(self, id, token, ch_id):
+    async def set_webhook(self, id, token, ch_id, guild_id=None):
 
         sql = """ 
         INSERT INTO webhooks(
             id, token, ch_id
             )
         VALUES(
-            CAST(:id AS BIGINT), CAST(:token AS VARCHAR(100)), CAST(:ch_id AS BIGINT)
+            CAST(:id AS BIGINT), CAST(:token AS VARCHAR(100)), CAST(:ch_id AS BIGINT), CAST(:guild_id AS BIGINT)
             )
         ON CONFLICT(id)
             DO UPDATE
@@ -77,7 +79,44 @@ class sqlite_db:
                 webhooks.ch_id = 	    CAST(:ch_id AS BIGINT);
         """
 
-        await self.cursor.execute(sql, {"id":id, "token":token, "ch_id":ch_id})
+      # ---------- Sort out of the channel arg ----------
+        if isinstance(ch_id, discord.TextChannel):
+            guild_id = ch_id.guild.id
+            ch_id = ch_id.id
+
+        elif type(ch_id) is str:
+            ch_id = ch_id.strip()
+
+            if not ch_id.isdigit():
+                return DBReturns.INVALIDCHANNEL  
+
+            ch_id =  int(ch_id)
+        
+        if not type(ch_id) is int:
+            return DBReturns.INVALIDCHANNEL  
+
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            if guild_id is None:
+                guild_id = guild_id.id
+        
+        elif type(guild_id) is int:
+            if not isinstance(ch_id, discord.TextChannel):
+                guild_id = guild_id
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+            
+            if not isinstance(ch_id, discord.TextChannel):
+                guild_id = int(guild_id)
+
+        if guild_id is None:
+            return DBReturns.INVALIDGUILD  
+
+        await self.cursor.execute(sql, {"id":id, "token":token, "ch_id":ch_id, "guild_id":guild_id})
         await self.conn.commit()
         return
 
@@ -233,7 +272,7 @@ class sqlite_db:
         await self.conn.commit()
         return DBReturns.SUCCESS
 
-    async def add_guild_settings(self, guild_id, prefix):
+    async def add_guild_settings(self, guild_id, prefix = "?"):
         sql = """ 
         INSERT INTO guild_settings(
             guild_id, prefix
@@ -244,10 +283,8 @@ class sqlite_db:
         ON CONFLICT(guild_id)
             DO UPDATE
             SET
-                prefix =        '?'
-                allowed_roles=  ''
-            WHERE
-                guild_id =      :guild_id;
+                prefix =        '?',
+                allowed_roles=  '';
         """
 
       # ---------- Sort out of the guild arg ----------
@@ -272,7 +309,7 @@ class sqlite_db:
         await self.conn.commit()
         return DBReturns.SUCCESS
         
-    async def set_guild_prefix(self, guild_id, prefix):
+    async def set_guild_prefix(self, guild_id, prefix = "?"):
         sql = """ 
         UPDATE guild_settings
         SET 
@@ -300,5 +337,58 @@ class sqlite_db:
         prefix = prefix or "?"
 
         await self.cursor.execute(sql, {"guild_id":guild_id, 'prefix':prefix})
+        await self.conn.commit()
+        return DBReturns.SUCCESS
+
+    async def guild_exists(self, guild_id):
+        
+        sql = "SELECT EXISTS (SELECT guild_id FROM guild_settings WHERE guild_id = CAST(:guild_id AS BIGINT));"
+
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD 
+
+      # ---------- Get exsiting data ----------
+        fetched = await self.conn.fetchrow(sql, {"guild_id":guild_id})
+
+        return fetched[0]
+
+    async def get_all_guild_ids(self):
+        sql = "SELECT guild_id FROM guild_settings;"
+
+        fetched = await self.conn.fetch(sql)
+
+        return fetched
+
+    async def remove_guild(self, guild_id):
+        sql = "DELETE FROM public.guild_settings WHERE guild_id = CAST(:guild_id AS BIGINT);"
+        
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD
+
+        await self.conn.execute(sql, {"guild_id":guild_id})
         await self.conn.commit()
         return DBReturns.SUCCESS

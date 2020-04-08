@@ -25,10 +25,10 @@ from .util.allowed_mentions import AllowedMentions
 
 import dblogin
 import asyncpg
-from .db_cmds import DatabaseCmds as pgCmds
+from .pg_db import postgresql_db
 
 import aiosqlite
-from .test_db import sqlite_db
+from .sqlite_db import sqlite_db
 
 
 logging.basicConfig(level=logging.INFO)
@@ -141,8 +141,33 @@ class NuggetEmoji(commands.Bot):
 
 
 # ======================================== Bot on Ready Funcs ========================================
+    async def validate_database(self):
 
+        await self.db.create_webhook_table()
+        await self.db.create_guild_settings_table()
 
+        i = 0
+        j = 0
+
+        # -------------------- Add new guilds --------------------
+        for guild in self.guilds:
+
+            if not await self.db.guild_exists(guild):
+                i += 1
+                await self.db.add_guild_settings(guild)
+        
+        # -------------------- Remove Old Guilds --------------------
+        guild_ids = [x.id for x in self.guilds]
+        db_guilds = await self.db.get_all_guild_ids()
+        
+        for db_guild in db_guilds:
+            
+            if db_guild['guild_id'] not in guild_ids:
+                j += 1
+                await self.db.remove_guild(db_guild['guild_id'])
+        
+        self.bot.safe_print(f"{i} guilds added to the database.")
+        self.bot.safe_print(f"{j} old guilds removed from database.")
 
 # ======================================== Bot Events ========================================
     async def on_ready(self):
@@ -165,21 +190,28 @@ class NuggetEmoji(commands.Bot):
         self.safe_print(r"--------------------------------------------------------------------------------")
         self.safe_print("\n")
 
-        #await self.pgdb_on_ready()
+        if self.config.use_postgre:
+            self.db = postgresql_db(
+                user = self.config.pg_login['user'],
+                pwrd = self.config.pg_login['pwrd'],
+                name = self.config.pg_login['name'],
+                host = self.config.pg_login['host']
+            )
+        
+        else:
+            self.db = sqlite_db()
 
-        self.test_db = sqlite_db()
-        await self.test_db.connect()
+        await self.db.connect()
 
-        await self.test_db.create_webhook_table()
-        await self.test_db.create_guild_settings_table()
-
+        await self.validate_database()
+        
         # ----- If bots first run.
         if not pathlib.Path("data/Do Not Delete").exists():
             await self.first_run(owner)
 
 
     async def on_resume(self):
-        await self.test_db.connect()
+        await self.db.connect()
 
         # ===== If the bot is still setting up
         await self.wait_until_ready()
@@ -187,7 +219,10 @@ class NuggetEmoji(commands.Bot):
         self.safe_print("Bot resumed")
 
     async def on_disconnect(self):
-        await self.test_db.close()
+        try:
+            await self.db.close()
+        except AttributeError:
+            pass
         return
 
     async def on_error(self, event, *args, **kwargs):
@@ -198,7 +233,13 @@ class NuggetEmoji(commands.Bot):
             print(ex.message)
             
             await asyncio.sleep(2)
-            #await self.db.close()
+            
+            try:
+                await self.db.close()
+            except AttributeError:
+                pass
+            
+            self.exit_signal = exceptions.TerminateSignal()
             await self.logout()
             await self.close()
 
@@ -211,18 +252,17 @@ class NuggetEmoji(commands.Bot):
                 elif type(ex.original) == exceptions.TerminateSignal:
                     self.exit_signal = exceptions.TerminateSignal()
 
-                await self.test_db.close()
-                #await self.db.close()
+                try:
+                    await self.db.close()
+                except AttributeError:
+                    pass
 
                 await self.logout()
                 await self.close()
 
-        elif issubclass(ex_type, exceptions.Signal):
-            self.exit_signal = ex_type
-            await self.test_db.close()
-            #await self.db.close()
-            await self.logout()
-            await self.close()
+            else:
+                print('Ignoring exception in {}'.format(event), file=sys.stderr)
+                traceback.print_exc()
 
         elif ex_type == exceptions.PostAsWebhook:
 
@@ -716,7 +756,7 @@ class NuggetEmoji(commands.Bot):
         }
 
         if content is not None:
-            payload['content'] = str(content)#.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
+            payload['content'] = str(content)
         
         if username:
             payload['username'] = username
@@ -735,7 +775,7 @@ class NuggetEmoji(commands.Bot):
         # ---------- GET WEBHOOK FROM DB ----------
     
 
-        r = await self.test_db.get_webhook(channel.id)
+        r = await self.db.get_webhook(channel.id)
 
         if not r:
             ava = await self.user.avatar_url_as(format="png", size=128).read()
@@ -744,7 +784,7 @@ class NuggetEmoji(commands.Bot):
             webhook_id = newWebhook.id
             webhook_token = newWebhook.token
 
-            await self.test_db.set_webhook(webhook_id, webhook_token, channel.id)
+            await self.db.set_webhook(webhook_id, webhook_token, channel)
 
         else: webhook_id, webhook_token = r
 

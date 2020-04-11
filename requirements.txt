@@ -1,1 +1,4 @@
 discord[voice]
+aiofiles
+asyncpg
+aiosqlite

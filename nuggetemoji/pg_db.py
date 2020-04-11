@@ -102,7 +102,7 @@ class postgresql_db:
         if guild_id is None:
             return DBReturns.INVALIDGUILD
 
-        await self.conn.execute(pg_cmds.SET_WEBHOOK, id, token, ch_id, guild_id)
+        await self.conn.execute(pg_cmds.SET_WEBHOOK, id, token, guild_id, ch_id)
         return
 
 

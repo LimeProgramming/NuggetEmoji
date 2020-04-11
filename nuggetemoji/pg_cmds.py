@@ -93,3 +93,15 @@ EXISTS_GUILD_DATABASE = "SELECT EXISTS (SELECT guild_id FROM public.guild_settin
 
 GET_ALL_GUILD_IDS = "SELECT guild_id FROM public.guild_settings;"
 REMOVE_GUILD_INFO = "DELETE FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT);"
+
+
+# ============================== EMOJIS TABLE ==============================
+CREATE_EMOJIS_TABLE = """
+    CREATE TABLE IF NOT EXISTS emojis (
+    emoji_id        BIGINT              PRIMARY KEY,
+    guild_id        BIGINT        DEFAULT '?',
+    name            VARCHAR(50)            DEFAULT ARRAY[]::BIGINT[],
+    animated        BOOLEAN
+    url             VARCHAR(100)
+    );
+    """

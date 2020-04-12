@@ -40,7 +40,9 @@ CREATE_GUILD_SETTINGS_TABLE = """
     CREATE TABLE IF NOT EXISTS guild_settings (
     guild_id            BIGINT              PRIMARY KEY,
     prefix              VARCHAR(100)        DEFAULT '?',
-    allowed_roles       BIGINT[]            DEFAULT ARRAY[]::BIGINT[]
+    allowed_roles       BIGINT[]            DEFAULT ARRAY[]::BIGINT[],
+    allow_mentions      BOOLEAN             DEFAULT FALSE,
+    allow_everyone      BOOLEAN             DEFAULT FALSE
     );
     
     COMMENT ON TABLE guild_settings IS                  'This table holds the settings for all the guilds the bot is on.';
@@ -99,9 +101,9 @@ REMOVE_GUILD_INFO = "DELETE FROM public.guild_settings WHERE guild_id = CAST($1 
 CREATE_EMOJIS_TABLE = """
     CREATE TABLE IF NOT EXISTS emojis (
     emoji_id        BIGINT              PRIMARY KEY,
-    guild_id        BIGINT        DEFAULT '?',
-    name            VARCHAR(50)            DEFAULT ARRAY[]::BIGINT[],
-    animated        BOOLEAN
+    guild_id        BIGINT              DEFAULT '?',
+    name            VARCHAR(50),
+    animated        BOOLEAN,
     url             VARCHAR(100)
     );
     """

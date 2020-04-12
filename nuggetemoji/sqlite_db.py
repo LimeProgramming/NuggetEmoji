@@ -129,6 +129,8 @@ class sqlite_db:
             "guild_id"          BIGINT,
             "prefix"            VARCHAR(100)        DEFAULT ('?'),
             "allowed_roles"     TEXT                DEFAULT (''),
+            "allow_mentions"    BOOLEAN             DEFAULT (False),
+            "allow_everyone"    BOOLEAN             DEFAULT (False),
             PRIMARY KEY("guild_id")
         );"""
 

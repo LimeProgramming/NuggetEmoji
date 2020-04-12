@@ -887,7 +887,7 @@ class NuggetEmoji(commands.Bot):
 
     @asyncio.coroutine
     async def send_webhook_emote(self, 
-        dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, 
+        dest:discord.TextChannel, *, 
         content:str, 
         username:str = None, 
         avatar_url:Union[discord.Asset, str] = None, 
@@ -904,8 +904,22 @@ class NuggetEmoji(commands.Bot):
         if username: payload['username'] = username
         if avatar_url: payload['avatar_url'] = str(avatar_url)
 
-      # ---------- Sort out dest arg ---------- 
-        channel = await self._get_channel(dest)
+        not_sent = True 
+
+        while not_sent:
+            try:
+                await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), json=payload)
+            
+            except discord.NotFound:
+
+
+
+                pass
+
+            except discord.HTTPException:
+                pass
+            
+
 
         pass
 
@@ -1003,6 +1017,19 @@ class NuggetEmoji(commands.Bot):
                     channel = None 
 
         return channel
+
+    async def _fetch_webhook(self, channel):
+        ava = await self.user.avatar_url_as(format="png", size=128).read()
+        newWebhook = await channel.create_webhook(name='NuggetEmoji', avatar=ava, reason='Used by NuggetEmoji to post webhooks.')
+
+        webhook_id = newWebhook.id
+        webhook_token = newWebhook.token
+
+        await self.db.set_webhook(webhook_id, webhook_token, channel)
+        
+        #self.guild_settings[channel.guild.id].set_webhook(channel.id, webhook_id, webhook_token)
+
+        return webhook_id, webhook_token
 
 # ======================================== HTTP Replacements ========================================
 # Lets be honest, Rapptz is too busy being a weeabo to make these any good.

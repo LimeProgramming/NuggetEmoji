@@ -100,7 +100,7 @@ class Test(commands.Cog):
         msg_content = stripper.sub('', msg_content)
 
         await self.bot.execute_webhook3(
-            channel=        msg.channel,
+            dest=           msg.channel,
             content=        msg_content,
             username=       msg.author.display_name,
             avatar_url=     AVATAR_URL_AS(msg.author, format="png", size=128)

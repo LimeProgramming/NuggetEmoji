@@ -19,6 +19,7 @@ from .util.misc import Response
 from .util import gen_embed as GenEmbed
 from .util import fake_objects as FakeOBJS
 from .util.allowed_mentions import AllowedMentions
+from .plugins.util.misc import AVATAR_URL_AS
 
 
 
@@ -719,7 +720,8 @@ class NuggetEmoji(commands.Bot):
         return
 
     @asyncio.coroutine
-    async def execute_webhook3(self, channel:discord.TextChannel, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, embed:discord.Embed = None, embeds = None, files = None, tts:bool = False):
+    async def execute_webhook3(self, dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, allowed_mentions=None, embed:discord.Embed = None, embeds = None, files = None, tts:bool = False):
+
         '''
         Custom discord.Webhook executer. 
         Using this webhook executer forces the discord.py libaray to POST a webhook using the http.request function rather than the request function built into WebhookAdapter.
@@ -742,27 +744,29 @@ class NuggetEmoji(commands.Bot):
         tts :class:`bool`
             Indicates if the message should be sent using text-to-speech.
         '''
-        # ---------- SORTOUT THE PAYLOAD ----------
+
+      # ---------- Sort out Allowed Mentions ---------- 
+        if allowed_mentions is not None:
+            if self.AllowedMentions is not None:
+                allowed_mentions = self.AllowedMentions.merge(allowed_mentions).to_dict()
+            else:
+                allowed_mentions = allowed_mentions.to_dict()
+        else:
+            allowed_mentions = self.AllowedMentions.to_dict()
+
+      # ---------- Sort out the payload ----------
+        payload = {
+            'tts': tts,
+            'allowed_mentions': allowed_mentions
+            }
+
+        if content: payload['content'] = content
+        if username: payload['username'] = username
+        if avatar_url: payload['avatar_url'] = str(avatar_url)
+
+      # ---------- Sort out embeds ---------- 
         if embeds is not None and embed is not None:
             raise discord.errors.InvalidArgument('Cannot mix embed and embeds keyword arguments.')
-
-        payload = {
-            'tts':tts,
-            "allowed_mentions": {
-                "parse": ["everyone"],
-                "users": [],
-                "roles": [654438136629166140]
-            }
-        }
-
-        if content is not None:
-            payload['content'] = str(content)
-        
-        if username:
-            payload['username'] = username
-
-        if avatar_url:
-            payload['avatar_url'] = str(avatar_url)
 
         if embeds is not None:
             if len(embeds) > 10:
@@ -772,14 +776,16 @@ class NuggetEmoji(commands.Bot):
         if embed is not None:
             payload['embeds'] = [embed.to_dict()]
 
-        # ---------- GET WEBHOOK FROM DB ----------
-    
+      # ---------- Sort out dest arg ---------- 
+        channel = await self._get_channel(dest)
 
+      # ---------- Get Webhook from DB ----------
+    
         r = await self.db.get_webhook(channel.id)
 
         if not r:
             ava = await self.user.avatar_url_as(format="png", size=128).read()
-            newWebhook = await channel.create_webhook(name='SQLite', avatar=ava, reason='Used by NuggetBot to post webhooks.')
+            newWebhook = await channel.create_webhook(name='NuggetEmoji', avatar=ava, reason='Used by NuggetEmoji to post webhooks.')
 
             webhook_id = newWebhook.id
             webhook_token = newWebhook.token
@@ -788,14 +794,15 @@ class NuggetEmoji(commands.Bot):
 
         else: webhook_id, webhook_token = r
 
-        # ---------- SORT OUT FILES ----------
-        cleanup = None
-        cleanup_files = [] 
-
-        form = aiohttp.FormData()
-        form.add_field('payload_json', discord.utils.to_json(payload))
-
+      # ---------- Sort out files Pural ----------
         if files is not None:
+            cleanup = None
+            cleanup_files = [] 
+
+            form = aiohttp.FormData()
+            form.add_field('payload_json', discord.utils.to_json(payload))
+
+          # === Itterate through the provided files
             for i, file in enumerate(files, start=1):
                 if isinstance(file, discord.message.Attachment):
                     filename = file.filename
@@ -818,21 +825,89 @@ class NuggetEmoji(commands.Bot):
 
             cleanup = _anon
 
-        try:
-            await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), data=form)
-        
-        except discord.errors.HTTPException as e:
-            print(e)
-            print("http")
-            pass
+          # === Send the Webhook
+            try:
+                await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), data=form)
+            
+            except discord.errors.HTTPException:
+                print("http")
+                pass
 
-        finally:
-            if cleanup:
-                cleanup()
+            finally:
+                if cleanup:
+                    cleanup()
+        else:
+            try:
+                await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), json=payload)
+            
+            except discord.HTTPException:
+                pass
 
         return
 
 
+
+# ======================================== Send Emote ========================================
+    @asyncio.coroutine
+    async def send_emote(self, 
+        dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, 
+        content:str, 
+        msg_content:str,
+        msg_author:discord.Member,
+        allowed_mentions=None, 
+        tts:bool = False):
+
+      # ---------- Sort out dest arg ---------- 
+        channel = await self._get_channel(dest)
+
+      # ---------- Sort out Allowed Mentions ---------- 
+        if allowed_mentions is not None:
+            if self.AllowedMentions is not None:
+                allowed_mentions = self.AllowedMentions.merge(allowed_mentions).to_dict()
+            else:
+                allowed_mentions = allowed_mentions.to_dict()
+        else:
+            allowed_mentions = self.AllowedMentions.to_dict()
+        
+      # ---------- Get bot perms for channel ---------- 
+        bot_perms = channel.permissions_for(channel.guild.get_member(self.user.id))
+
+        if bot_perms.manage_webhooks:
+            await self.send_webhook_emote(
+                channel,
+                content=content,
+                username=msg_author.display_name,
+                avatar_url=AVATAR_URL_AS(msg_author, format="png", size=128),
+                allowed_mentions=allowed_mentions,
+                tts=tts
+            )
+        
+        else:
+            await self.send_msg_rqt(channel.id, msg_content, tts=tts, allowed_mentions=allowed_mentions)
+
+    @asyncio.coroutine
+    async def send_webhook_emote(self, 
+        dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, 
+        content:str, 
+        username:str = None, 
+        avatar_url:Union[discord.Asset, str] = None, 
+        allowed_mentions=None, 
+        tts:bool = False):
+
+      # ---------- Sort out the payload ----------
+        payload = {
+            'tts': tts,
+            'allowed_mentions': allowed_mentions
+            }
+
+        if content: payload['content'] = content
+        if username: payload['username'] = username
+        if avatar_url: payload['avatar_url'] = str(avatar_url)
+
+      # ---------- Sort out dest arg ---------- 
+        channel = await self._get_channel(dest)
+
+        pass
 
 # ======================================== Misc ========================================
 

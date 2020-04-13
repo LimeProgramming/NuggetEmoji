@@ -105,6 +105,29 @@ class postgresql_db:
         await self.conn.execute(pg_cmds.SET_WEBHOOK, id, token, guild_id, ch_id)
         return
 
+    async def get_guild_webhooks(self, guild_id):
+        
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            if guild_id is None:
+                guild_id = guild_id.id
+        
+        elif type(guild_id) is int:
+            pass
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+
+            guild_id = int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD 
+
+        fetched = await self.conn.fetch(pg_cmds.GET_GUILD_WEBHOOKS, guild_id)
+        return fetched
 
   # ============================== GUILD TABLE ==============================
     # Adds a guild to the guilds table
@@ -312,3 +335,26 @@ class postgresql_db:
 
         await self.conn.execute(pg_cmds.REMOVE_GUILD_INFO, guild_id)
         return DBReturns.SUCCESS
+
+    async def get_guild_settings(self, guild_id):
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is int:
+            pass
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD
+
+        fetched = await self.conn.fetchrow(pg_cmds.GET_GUILD_SETTINGS, guild_id)
+        
+        return fetched

@@ -15,7 +15,7 @@ CREATE_WEBHOOK_TABLE = """
     COMMENT ON COLUMN webhooks.guild_id IS      'Guild id the channel is in.';
     """
 
-GET_WEBHOOK=                "SELECT id, token FROM public.webhooks WHERE ch_id = CAST($1 as BIGINT) LIMIT 1" 
+GET_WEBHOOK=                "SELECT id, token FROM public.webhooks WHERE ch_id = CAST($1 as BIGINT) LIMIT 1;" 
 SET_WEBHOOK="""
     INSERT INTO public.webhooks(
         id, token, guild_id, ch_id
@@ -23,7 +23,7 @@ SET_WEBHOOK="""
     VALUES(
         CAST($1 AS BIGINT), CAST($2 AS VARCHAR(100)), CAST($3 AS BIGINT), CAST($4 AS BIGINT)
         )
-    ON CONFLICT(id)
+    ON CONFLICT(ch_id)
         DO UPDATE
         SET 
             id = 		    CAST($1 AS BIGINT),
@@ -33,6 +33,8 @@ SET_WEBHOOK="""
         WHERE 
             webhooks.ch_id = 	    CAST($3 AS BIGINT);
     """
+
+GET_GUILD_WEBHOOKS=         "SELECT id, token, ch_id FROM public.webhooks WHERE guild_id = CAST($1 AS BIGINT);"
 
 
 # ============================== GUILD SETTINGS TABLE ==============================
@@ -95,7 +97,7 @@ EXISTS_GUILD_DATABASE = "SELECT EXISTS (SELECT guild_id FROM public.guild_settin
 
 GET_ALL_GUILD_IDS = "SELECT guild_id FROM public.guild_settings;"
 REMOVE_GUILD_INFO = "DELETE FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT);"
-
+GET_GUILD_SETTINGS = "SELECT * FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT) LIMIT 1;"
 
 # ============================== EMOJIS TABLE ==============================
 CREATE_EMOJIS_TABLE = """

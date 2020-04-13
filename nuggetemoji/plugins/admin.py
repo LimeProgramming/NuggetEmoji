@@ -1,4 +1,5 @@
 import sys
+import json
 import discord
 import asyncio
 import datetime
@@ -103,7 +104,12 @@ class Admin(commands.Cog):
         return 
 
 
-
+    async def cmd_checkemotes(self, ctx):
+        try:
+            with open('data/stock.json', 'w') as s:
+                unicodeEmotes = json.load(s)
+        except FileNotFoundError:
+            unicodeEmotes = []
 
 
 

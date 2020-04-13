@@ -38,7 +38,6 @@ class Config:
         self.playing_game=      config.get(         'Bot',        'game',              fallback=ConfigDefaults.playing_game)
         
       # -------------------------------------------------- DATABASE --------------------------------------------------
-
         self.use_sqlite=        config.getboolean(  'Database',   'SQLite',           fallback=True)
         self.use_postgre=       config.getboolean(  'Database',   'PostgreSQL',       fallback=False)
 
@@ -48,6 +47,10 @@ class Config:
         self.pg_login['name']=  config.get(         'PostgreSQL', 'Database Name',    fallback=default_value)
         self.pg_login['user']=  config.get(         'PostgreSQL', 'User',             fallback=default_value)
         self.pg_login['pwrd']=  config.get(         'PostgreSQL', 'Password',         fallback=default_value)
+
+      # -------------------------------------------------- ADVANCED --------------------------------------------------
+        self.webhook_name=      config.get(         'Advanced',   'Webhook name',     fallback='NuggetEmoji')
+
 
         self.run_checks()
 

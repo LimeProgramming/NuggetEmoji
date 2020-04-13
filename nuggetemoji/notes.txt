@@ -51,3 +51,5 @@ class Channel:
 
 
 x = Guild("test", 1, {1: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 2: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 3: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 4: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 5: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 6: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 7: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 8: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 9: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 10: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 11: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 12: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 13: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 14: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"]})
+
+

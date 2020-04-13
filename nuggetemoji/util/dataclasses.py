@@ -1,46 +1,77 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from discord import TextChannel as DiscordTextChannel
+from discord import VoiceChannel as DiscordVoiceChannel
+from discord import CategoryChannel as DiscordCategoryChannel
+from discord import Guild as DiscordGuild
+from discord import Webhook as DiscordWebhook
+
+
+
+@dataclass
+class GuildSettings:
+    guilds: dict = field(default_factory=dict)
+
+    def add_guild(self, guild):
+        self.guilds[guild.id] = guild
+    
+    def get_webhook(self, guild, channel):
+        if isinstance(guild, DiscordGuild):
+            guild = guild.id 
+        
+        if isinstance(channel, DiscordTextChannel):
+            channel = channel.id
+
+        try:
+            return self.guilds[guild].get_webhook[channel]
+        except KeyError:
+            return None
+    
+    def set_webhook(self, guild, webhook):
+        if isinstance(webhook, DiscordWebhook):
+            self.guilds[webhook.guild_id].set_webhook2(Webhook(webhook.id, webhook.token, webhook.channel_id))
+            return 
+
+        if isinstance(guild, DiscordGuild):
+            guild = guild.id 
+
+        self.guilds[guild].set_webhook2(webhook)
+        return
+        
+
+@dataclass
+class Webhook:
+    id: int
+    token: str
+    ch_id: int
+
 
 @dataclass
 class Guild:
     name: str
     id: int
     prefix: str = '?'
-    channels: dict
+    allowed_roles: list = field(default_factory=list)
+    allow_mentions: bool = False
+    allow_everyone: bool = False
+    webhooks: dict = field(default_factory=dict)
+
     def __repr__(self):
         return "<Guild_Settings name={}, guild_id={}>".format(
             repr(self.name),
             self.id,
         )
-        
-    def get_channel(self, id):
-        try:
-             return self.channels[id]
-        except KeyError:
-            return None
+    
+    def set_webhook(self, ch_id:int, w_id:int, w_token:int):
+        self.webhooks[ch_id] = Webhook(w_id, w_token, ch_id)
+        return
 
-    def set_webhook(self, ch_id, w_id, w_token):
-        try:
-            self.channels[ch_id].set_webhook(w_id, w_token)
-        except KeyError:
-            pass
+    def set_webhook2(self, webhook):
+        self.webhooks[webhook.ch_id] = webhook
+        return
 
     def get_webhook(self, ch_id):
         try:
-            return self.channels[ch_id].get_webhook()
-        except:
-            return 0, 0
-
-
-@dataclass
-class Channel:
-    id: int
-    guild_id: int
-    webhook_id: int
-    webhook_token: str
-
-    def get_webhook(self):
-        return self.webhook_id, self.webhook_token
-
-    def set_webhook(self, id, token):
-        self.webhook_id = id
-        self.webhook_token = token
+            return self.webhooks[ch_id]
+        except KeyError:
+            return None

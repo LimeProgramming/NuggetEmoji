@@ -68,7 +68,7 @@ class sqlite_db:
         VALUES(
             CAST(:id AS BIGINT), CAST(:token AS VARCHAR(100)), CAST(:ch_id AS BIGINT), CAST(:guild_id AS BIGINT)
             )
-        ON CONFLICT(id)
+        ON CONFLICT(ch_id)
             DO UPDATE
             SET 
                 id = 		    CAST(:id AS BIGINT),
@@ -119,6 +119,33 @@ class sqlite_db:
         await self.cursor.execute(sql, {"id":id, "token":token, "ch_id":ch_id, "guild_id":guild_id})
         await self.conn.commit()
         return
+
+    async def get_guild_webhooks(self, guild_id):
+
+        sql = "SELECT id, token, ch_id FROM webhooks WHERE guild_id = CAST(? AS BIGINT);"
+
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            if guild_id is None:
+                guild_id = guild_id.id
+        
+        elif type(guild_id) is int:
+            pass
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+
+            guild_id = int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD 
+
+        await self.cursor.execute(sql, (guild_id,))
+        fetched = await self.cursor.fetch()
+        return fetched
 
 
   # ============================== GUILD TABLE ==============================
@@ -394,3 +421,38 @@ class sqlite_db:
         await self.conn.execute(sql, {"guild_id":guild_id})
         await self.conn.commit()
         return DBReturns.SUCCESS
+
+    async def get_guild_settings(self, guild_id):
+        sql = "SELECT * FROM guild_settings WHERE guild_id = CAST(:guild_id AS BIGINT) LIMIT 1;"
+
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is int:
+            pass
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD
+
+        await self.cursor.execute(sql, {"guild_id":guild_id})
+        fetched = await self.cursor.fetchone()
+        fetched['allowed_roles'] = [int(i) for i in fetched['allowed_roles'].split(',') if i.isdigit()]
+
+        tfetched = {
+            "guild_id":         fetched['guild_id'],
+            "prefix":           fetched['prefix'],
+            "allowed_roles":    [int(i) for i in fetched['allowed_roles'].split(',') if i.isdigit()],
+            "allow_mentions":   fetched['allow_mentions'],
+            "allow_everyone":   fetched['allow_everyone'],
+        }
+        del fetched 
+        return tfetched

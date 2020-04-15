@@ -978,6 +978,8 @@ class NuggetEmoji(commands.Bot):
                         content = content.replace(emotelink, fixed_emote_link)
 
             await self.send_msg_rqt(channel.id, content, tts=tts, allowed_mentions=allowed_mentions)
+        
+        return
 
     @asyncio.coroutine
     async def send_webhook_emote(self, 

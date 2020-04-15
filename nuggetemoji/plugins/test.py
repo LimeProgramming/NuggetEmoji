@@ -124,7 +124,8 @@ class Test(commands.Cog):
             allowed_mentions=   allowed_mentions
             )
 
-        await msg.delete()
+        await self.bot.delete_msg(msg, quiet=True)
+        return
 
 
 

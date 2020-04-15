@@ -32,6 +32,8 @@ class Owner(commands.Cog):
                 await ctx.message.delete()
             except discord.errors.NotFound:
                 pass 
+            except discord.errors.Forbidden:
+                pass
 
     @asyncio.coroutine
     async def cog_command_error(self, ctx, error):

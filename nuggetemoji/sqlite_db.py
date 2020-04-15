@@ -44,7 +44,8 @@ class sqlite_db:
             "ch_id"     BIGINT,
             "guild_id"  BIGINT,
             "timestamp" DATETIME        DEFAULT (DATETIME('now', 'utc')),
-            PRIMARY KEY("id")
+            PRIMARY KEY("id"),
+            UNIQUE("ch_id")
         );"""
 
         await self.cursor.execute(sql)

@@ -109,8 +109,7 @@ class postgresql_db:
         
       # ---------- Sort out of the guild arg ----------
         if isinstance(guild_id, discord.Guild):
-            if guild_id is None:
-                guild_id = guild_id.id
+            guild_id = guild_id.id
         
         elif type(guild_id) is int:
             pass

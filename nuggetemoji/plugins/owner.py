@@ -121,7 +121,14 @@ class Owner(commands.Cog):
     async def _reboot_error(self, ctx, error):
         raise error.original
 
-
+    @checks.BOT_OWNER()
+    @commands.command(pass_context=True, hidden=False, name='printguildsettings', aliases=[])
+    async def cmd_printguildsettings(self, ctx):
+        print(self.bot.guild_settings)
+        print(self.bot.guild_settings.get_guild(ctx.guild))
+        print(self.bot.guild_settings.get_guild(ctx.guild).webhooks)
+        await ctx.send("Done")
+        return 
 
 def setup(bot):
     bot.add_cog(Owner(bot))

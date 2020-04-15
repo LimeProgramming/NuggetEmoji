@@ -4,7 +4,7 @@ CREATE_WEBHOOK_TABLE = """
         id          BIGINT          PRIMARY KEY,
         token       VARCHAR(100),
         guild_id    BIGINT,
-        ch_id       BIGINT,
+        ch_id       BIGINT          UNIQUE,
         timestamp   TIMESTAMP       DEFAULT TIMEZONE('utc'::text, NOW())
     );
 

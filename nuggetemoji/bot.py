@@ -1,4 +1,4 @@
-#import re
+import re
 import sys
 import json
 import random
@@ -203,7 +203,7 @@ class NuggetEmoji(commands.Bot):
                     bot_errors.append(f'Bot lacks permission Manage Webhooks in channel <#{channel.id}>')
                     continue 
 
-                webhooks = await channel.webhooks
+                webhooks = await channel.webhooks()
                 
                 # = If channel has no webhooks 
                 if len(webhooks) == 0:
@@ -219,7 +219,10 @@ class NuggetEmoji(commands.Bot):
                     continue
                 
                 # = if any of the channels webhooks match a stored webhook
-                if any([bool((webhook.id, webhook.token, channel.id) in stored_webhooks) for webhook in webhooks]):
+                known_webhooks = [(webhook.id, webhook.token, channel.id) for webhook in webhooks if (webhook.id, webhook.token, channel.id) in stored_webhooks]
+                if known_webhooks:
+                    hook = next(iter(known_webhooks))
+                    sguild.set_webhook(ch_id=hook[2], w_id=hook[0], w_token=hook[1])
                     continue
                 
                 # = Try to find a webhook the bot made and pick one.
@@ -280,7 +283,7 @@ class NuggetEmoji(commands.Bot):
 
         await self.validate_database()
 
-        #await self.pull_guild_settings()
+        await self.pull_guild_settings()
         
         # ----- If bots first run.
         if not pathlib.Path("data/Do Not Delete").exists():
@@ -928,7 +931,6 @@ class NuggetEmoji(commands.Bot):
     async def send_emote(self, 
         dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, 
         content:str, 
-        msg_content:str,
         msg_author:discord.Member,
         allowed_mentions=None, 
         tts:bool = False):
@@ -959,7 +961,23 @@ class NuggetEmoji(commands.Bot):
             )
         
         else:
-            await self.send_msg_rqt(channel.id, msg_content, tts=tts, allowed_mentions=allowed_mentions)
+            pattern = re.compile(r'\[\]\(https://.*?(?:png|gif)\?size=[0-9]+\?v=1 \)', re.DOTALL)
+            emotelinks = pattern.findall(content)
+
+            if len(emotelinks) > 0:
+                for emotelink in emotelinks:
+                    fixed_emote_link = ""
+
+                    if ".png?size=128?v=1 )" in emotelink:
+                        fixed_emote_link = emotelink.replace("[](https://cdn.discordapp.com/emojis/", "<:name:").replace('.png?size=128?v=1 )', '>')
+
+                    elif '.gif?size=128?v=1 )' in emotelink:
+                        fixed_emote_link = emotelink.replace("[](https://cdn.discordapp.com/emojis/", "<a:name:").replace('.gif?size=128?v=1 )', '>')
+
+                    if fixed_emote_link:
+                        content = content.replace(emotelink, fixed_emote_link)
+
+            await self.send_msg_rqt(channel.id, content, tts=tts, allowed_mentions=allowed_mentions)
 
     @asyncio.coroutine
     async def send_webhook_emote(self, 
@@ -980,19 +998,23 @@ class NuggetEmoji(commands.Bot):
         if username: payload['username'] = username
         if avatar_url: payload['avatar_url'] = str(avatar_url)
 
-        not_sent = True 
+        try_again = True 
+        tried_again = False
 
-        while not_sent:
+        while try_again:
+            try_again = False
+
             try:
                 hook = self.guild_settings.get_webhook(dest.guild, dest)
 
                 if hook is None:
-                    hook = self._fetch_webhook(dest)
+                    hook = await self._fetch_webhook(dest)
 
-                await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook_id}/{webhook_token}'), json=payload)
-                not_sent = False
-            
+                await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{hook.id}/{hook.token}'), json=payload)
+                
             except discord.NotFound:
+                if not tried_again:
+                    try_again = True
 
                 pass
 
@@ -1106,13 +1128,10 @@ class NuggetEmoji(commands.Bot):
             reason=f'Used by {self.bot.user.name} to post webhooks.'
         )
 
-        webhook_id = hook.id
-        webhook_token = hook.token
-
-        await self.db.set_webhook(webhook_id, webhook_token, channel)
-        self.guild_settings.set_webhook(channel.guild, dataclasses.Webhook(webhook_id, webhook_token, channel.id))
+        await self.db.set_webhook(hook.id, hook.token, channel)
+        self.guild_settings.set_webhook(channel.guild, dataclasses.Webhook(hook.id, hook.token, channel.id))
         
-        return dataclasses.Webhook(webhook_id, webhook_token, channel.id)
+        return dataclasses.Webhook(hook.id, hook.token, channel.id)
 
 # ======================================== HTTP Replacements ========================================
 # Lets be honest, Rapptz is too busy being a weeabo to make these any good.

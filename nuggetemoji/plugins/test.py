@@ -16,8 +16,9 @@ from .util import checks, cogset
 from .util.misc import RANDOM_DISCORD_COLOUR, AVATAR_URL_AS, GUILD_URL_AS
 #from nuggetbot import exceptions
 #from nuggetbot.database import DatabaseCmds as pgCmds
-
+from nuggetemoji.util.allowed_mentions import AllowedMentions
 from nuggetemoji.util.exceptions import RestartSignal, TerminateSignal
+
 
 import dblogin 
 
@@ -84,27 +85,44 @@ class Test(commands.Cog):
                 if e is None: continue
 
                 # = Replace sent emote with url link.
-                msg_content = msg_content.replace(f':{et}:', f'[](https://cdn.discordapp.com/emojis/{e.id}.{"gif" if e.animated else "webp"}?size=128?v=1 )')
+                msg_content = msg_content.replace(f':{et}:', f'[](https://cdn.discordapp.com/emojis/{e.id}.{"gif" if e.animated else "png"}?size=128?v=1 )')
 
         # ===== Exit if no changes were made.
         if msg_content == msg.content: return
 
-        # ===== Checked allowed roles in the Guild
-        allowed_roles = await self.bot.db.get_guild_allowed_roles(msg.guild)
-
-        if allowed_roles:
-            if not bool(set(allowed_roles).intersection(set([i.id for i in msg.author.roles]))):
+        # ===== Get guild settings
+        guild_setting = self.bot.guild_settings.get_guild(msg.guild)
+    
+        if guild_setting.allowed_roles:
+            if not bool(set(guild_setting.allowed_roles).intersection(set([i.id for i in msg.author.roles]))):
                 return
+
+        # ===== Sort out mentions
+        allowed_mentions = None 
+
+        if guild_setting.allow_mentions and guild_setting.allow_everyone:
+
+            if msg.channel.permissions_for(msg.author).mention_everyone:
+                allowed_mentions = AllowedMentions(everyone=True, roles=True, users=True)
+
+            allowed_mentions = AllowedMentions(everyone=False, roles=True, users=True)
+        
+        elif guild_setting.allow_mentions:
+            allowed_mentions = AllowedMentions(everyone=False, roles=True, users=True)
+
+        elif guild_setting.allow_everyone:
+            if msg.channel.permissions_for(msg.author).mention_everyone:
+                allowed_mentions = AllowedMentions(everyone=True, roles=False, users=False)
 
         stripper = re.compile(r'[:\s+][\s+:]', re.UNICODE)
         msg_content = stripper.sub('', msg_content)
 
-        await self.bot.execute_webhook3(
-            dest=           msg.channel,
-            content=        msg_content,
-            username=       msg.author.display_name,
-            avatar_url=     AVATAR_URL_AS(msg.author, format="png", size=128)
-        )
+        await self.bot.send_emote(
+            dest=               msg.channel,
+            content=            msg_content,
+            msg_author=         msg.author,
+            allowed_mentions=   allowed_mentions
+            )
 
         await msg.delete()
 

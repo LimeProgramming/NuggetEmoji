@@ -15,7 +15,15 @@ class GuildSettings:
     def add_guild(self, guild):
         self.guilds[guild.id] = guild
     
+    def get_guild(self, guild):
+        # ===== Sort out Guild Arg
+        if isinstance(guild, DiscordGuild):
+            guild = guild.id 
+        
+        return self.guilds[guild]
+
     def get_webhook(self, guild, channel):
+        # ===== Sort out Guild Arg
         if isinstance(guild, DiscordGuild):
             guild = guild.id 
         
@@ -23,8 +31,9 @@ class GuildSettings:
             channel = channel.id
 
         try:
-            return self.guilds[guild].get_webhook[channel]
+            return self.guilds[guild].get_webhook(channel)
         except KeyError:
+            print("keyerror")
             return None
     
     def set_webhook(self, guild, webhook):
@@ -32,11 +41,19 @@ class GuildSettings:
             self.guilds[webhook.guild_id].set_webhook2(Webhook(webhook.id, webhook.token, webhook.channel_id))
             return 
 
+        # ===== Sort out Guild Arg
         if isinstance(guild, DiscordGuild):
             guild = guild.id 
 
         self.guilds[guild].set_webhook2(webhook)
         return
+    
+    def del_webhook(self, guild, webhook):
+        # ===== Sort out Guild Arg
+        if isinstance(guild, DiscordGuild):
+            guild = guild.id 
+
+        self.guilds[guild]
         
 
 @dataclass
@@ -56,11 +73,11 @@ class Guild:
     allow_everyone: bool = False
     webhooks: dict = field(default_factory=dict)
 
-    def __repr__(self):
-        return "<Guild_Settings name={}, guild_id={}>".format(
-            repr(self.name),
-            self.id,
-        )
+    #def __repr__(self):
+    #    return "<Guild_Settings name={}, guild_id={}>, prefix={}, allowed_roles={}".format(
+    #        repr(self.name),
+    #        self.id,
+    #    )
     
     def set_webhook(self, ch_id:int, w_id:int, w_token:int):
         self.webhooks[ch_id] = Webhook(w_id, w_token, ch_id)
@@ -75,3 +92,11 @@ class Guild:
             return self.webhooks[ch_id]
         except KeyError:
             return None
+
+    def del_webhook(self, webhook):
+        try:
+            del self.webhooks[webhook.ch_id]
+        except KeyError:
+            pass 
+        finally:
+            return

@@ -9,7 +9,7 @@ import logging
 import pathlib
 import datetime
 import traceback
-from typing import Union
+from typing import Union, Optional, NoReturn
 from discord.ext import commands
 from collections.abc import Iterable
 
@@ -289,7 +289,6 @@ class NuggetEmoji(commands.Bot):
         if not pathlib.Path("data/Do Not Delete").exists():
             await self.first_run(owner)
 
-
     async def on_resume(self):
         await self.db.connect()
 
@@ -389,7 +388,7 @@ class NuggetEmoji(commands.Bot):
   # -------------------- Safe Send/Delete Messages --------------------
 
     @asyncio.coroutine
-    async def send_msg(self, dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context], *, content=None, embed=None, tts=False, expire_in=None, also_delete:discord.Message =None, quiet=True):
+    async def send_msg(self, dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, content: str =None, embed=None, tts=False, delete_after=0, also_delete: Optional[discord.Message] = None, allowed_mentions=None, file=None, files=None, quiet=True):
         '''
         Parameters
         ------------
@@ -401,10 +400,16 @@ class NuggetEmoji(commands.Bot):
             The rich embed for the content.
         tts :class:`bool`
             Indicates if the message should be sent using text-to-speech.
-        expire_in :class:`float`
+        delete_after :class:`float`
             If provided, dictates how long the message should exist before being deleted
         also_delete :class:`discord.Message`
             Another message to also delete (typically invoking message), also affected by expire_in
+        allowed_mentions :class:`~AllowedMentions`
+            Dict of mentions the bot is allowed to ping in the sent message.
+        file Optional[:class:`discord.File`]
+            A file to send with the message.
+        files Optional[List[:class:`discord.File`]]
+            List of files to send with the message. Maximum of 10 files allowed.
         quiet :class:`bool`
             If True errors are not reported.
 
@@ -413,106 +418,7 @@ class NuggetEmoji(commands.Bot):
         :class:`~discord.Message`
             The message that was sent.
         '''
-        # ===== IF DESTINATION IS A MESSAGE
-        if isinstance(dest, discord.Message):
-            dest = dest.channel 
 
-        msg = None
-        try:
-            msg = await dest.send(content=content, embed=embed, tts=tts, delete_after=expire_in)
-
-            if also_delete and isinstance(also_delete, discord.Message):
-                asyncio.ensure_future(self.__del_msg_later(also_delete, expire_in))
-
-        except discord.Forbidden:
-            if not quiet:
-                self.safe_print("[Warning] Cannot send message to {dest.name}, no permission")
-
-        except discord.NotFound:
-            if not quiet:
-                self.safe_print("[Warning] Cannot send message to {dest.name}, invalid channel?")
-
-        return msg
-
-    @asyncio.coroutine
-    async def send_msg_chid(self, ch_id:Union[int, discord.Object], *, content:str = None, embed:discord.Embed = None, tts=False, expire_in:int = 0, also_delete:Union[discord.Message, discord.ext.commands.Context] = None, quiet=True, guild_id=None):
-        '''
-        Alt version of safe send message where messages can be send using channel id. Saves getting the channel from discord API.
-        Made for sending to channels entered into the config.py. Also handles the exceptions to the best of it's ability.
-        Must provide either embed or content.
-
-        Parameters
-        ------------
-        ch_id Union[:class:`int`, :class:`discord.Object`]        
-            Channel id of the destination, can be a private channel. 
-            Discord.Object is supported for compatability 
-        content :class:`str`           
-            Text content which will be sent.
-        embed :class:`discord.Embed` 
-            Discord Embed object.
-        tts :class:`boolean`         
-            Enable text to speech or not.
-        expire_in :class:`int`        
-            Number of seconds before deleting the returned message
-        also_delete Union[:class:`discord.Message`, :class:`discord.Context`]
-            Another message to delete after time set with expire_in
-        
-        Returns
-        --------
-        :class:`~discord.Message`
-            The message that was sent.
-
-        '''
-        
-        # ===== COMPATABILITY REASONS
-        if isinstance(ch_id, discord.Object):
-            ch_id = ch_id.id 
-
-        # ===== ENTURE CONTENT IS A STRING OR NONE
-        content = str(content) if content is not None else None
-        
-        # ===== SERIALIZE EMBEDS
-        if embed is not None:
-            embed = embed.to_dict()
-
-        msg = None
-
-        try:
-            msg = await self.bot.http.send_message(ch_id, content=content, embed=embed, tts=tts)
-
-            fakemsg = FakeOBJS.FakeMsg1(msg, guild_id)
-
-            # === SCHEDULE SENT MESSAGE FOR DELETION
-            if expire_in:
-                asyncio.ensure_future(self.delete_msg_id(fakemsg.id, fakemsg.channel.id, delay=expire_in))
-
-            # === DELETE ADDITIONAL MESSAGE IF APPLICABLE
-            if also_delete:
-                asyncio.ensure_future(self.delete_msg(also_delete, delay=expire_in))
-
-        except discord.Forbidden:
-            if not quiet:
-                self.safe_print(f"[Error] [new_members] Unable to send to channel {ch_id} due to lack of permissions.")
-
-        except discord.NotFound:
-            if not quiet:
-                self.safe_print(f"[Error] [new_members] Cannot send message to channel {ch_id}, invalid channel?")
-
-        return fakemsg
-
-    @asyncio.coroutine
-    async def send_msg2(self, 
-        dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, 
-        content=None, 
-        embed=None, 
-        tts=False, 
-        delete_after=0,
-        also_delete:discord.Message =None, 
-        allowed_mentions=None,
-        file=None,
-        files=None,
-        quiet=True):
-        
         msg = None
 
       # ---------- Sort out file and files ---------- 
@@ -551,7 +457,7 @@ class NuggetEmoji(commands.Bot):
             finally:
                 file.close()
 
-      # ---------- Sort out files pural ---------- 
+      # ---------- Send files pural ---------- 
         elif files is not None:
             if len(files) > 10:
                 raise discord.InvalidArgument('files parameter must be a list of up to 10 elements')
@@ -575,7 +481,7 @@ class NuggetEmoji(commands.Bot):
                 for f in files:
                     f.close()
 
-      # ---------- Sort out dest arg ---------- 
+      # ---------- Send no files ---------- 
         else:
             try:
                 data = await self.send_msg_rqt(channel.id, content, tts=tts, embed=embed, allowed_mentions=allowed_mentions)
@@ -599,76 +505,40 @@ class NuggetEmoji(commands.Bot):
 
         return msg
 
-
     @asyncio.coroutine
-    async def delete_msg(self, message:discord.Message, reason:str = None, *, delay:float = None, quiet=False):
-        """
+    async def delete_msg(self, message: Union[discord.Message, int], channel: Optional[Union[discord.TextChannel, int]] = None, reason: Optional[str] = None, *,  delete_after: Optional[float] = None, quiet=False) -> NoReturn:
+        '''
         Messages to be deleted are routed though here to handle the exceptions. 
         Unlike message.delete() this function supports an audit log reason.
 
         Parameters
         ------------
-        message :class:`discord.Message`
-            Message to be deleted.
-        reason :class:`str`
+        message Union[:class:`discord.Message`, :class:`int`]
+            Discord message or message id to be deleted.
+        channel Optional[Union[:class:`discord.TextChannel, :class:`int`]]
+            Discord TextChannel or channel id of the message the channel was posted in. This is required is message is an int.
+        reason Optional[:class:`str`]
             Audit Log reason for deleteing the message
-        delay: Optional[:class:`float`]
+        delete_after: Optional[:class:`float`]
             If provided, the number of seconds to wait in the background before deleting the message.
         quiet :class:`bool`
             If True errors are not reported.
-        """
+        '''
+
+        # ===== If message to be deleted is an id but no channel is provided.
+        if type(message) is int and channel is None:
+            raise discord.InvalidArgument
+
+        # ===== If message is of discord.Message type
+        if isinstance(message, discord.Message):
+            channel = message.channel.id
+            message = message.id 
 
         try:
-            if delay is not None:
-
+            if delete_after is not None:
+                
                 async def delete():
-                    await asyncio.sleep(delay, loop=message._state.loop)
-                    await self.bot.http.delete_message(message.channel.id, message.id, reason=reason)
-
-                asyncio.ensure_future(delete(), loop=message._state.loop)
-
-            else:
-                await self.bot.http.delete_message(message.channel.id, message.id, reason=reason)
-            
-        except discord.errors.Forbidden:
-            if not quiet:
-                self.safe_print(f"[Warning] Cannot delete message \"{message.clean_content}\", no permission")
-
-        except discord.errors.NotFound:
-            if not quiet:
-                self.safe_print(f"[Warning] Cannot delete message \"{message.clean_content}\", message not found")
-
-        except discord.errors.HTTPException:
-            if not quiet:
-                self.safe_print(f"[Warning] Cannot delete message \"{message.clean_content}\", generic error.")
-            
-        return
-    
-    @asyncio.coroutine
-    async def delete_msg_id(self, message:int, channel:int, reason:str = None, *, delay:float = None, quiet=False):
-        """
-        Messages to be deleted are routed though here to handle the exceptions.
-        This deletes using bot.http functions to bypass having to find each message before deleting it.
-
-        Parameters
-        ------------
-        message :class:`int`
-            Message ID of message to be deleted.
-        channel :class:`int`
-            Channel ID of channel the message was posted in.
-        reason Optional[:class:`str`]
-            Reason for message being deleted
-        delay Optional[:class:`float`]
-            If provided, the number of seconds to wait in the background before deleting the message.
-        quiet Optional[:class:`bool`]
-            If True errors are not reported.
-        """
-        
-        try:
-            if delay is not None:
-
-                async def delete():
-                    await asyncio.sleep(delay, loop=self.loop)
+                    await asyncio.sleep(delete_after, loop=self.loop)
                     await self.bot.http.delete_message(channel_id=channel, message_id=message, reason=reason)
 
                 asyncio.ensure_future(delete(), loop=self.loop)
@@ -687,6 +557,7 @@ class NuggetEmoji(commands.Bot):
         except discord.errors.HTTPException:
             if not quiet:
                 self.safe_print(f"[Warning] Cannot delete message \"{message}\", generic error.")
+                
         return
 
     @asyncio.coroutine
@@ -715,7 +586,7 @@ class NuggetEmoji(commands.Bot):
 
         # ===== IF LENTH MESSAGES IS 1, DELETE IT NORMALLY.
         if len(messages) == 1:
-            await self.delete_msg_id(messages[0], channel, reason, quiet=quiet)
+            await self.delete_msg(messages[0], channel, reason, quiet=quiet)
             return
 
         # ===== SPLIT MESSAGES LIST TO ENSURE NUM IS 100 OR LESS, DISCORD API LIMITATION
@@ -745,61 +616,8 @@ class NuggetEmoji(commands.Bot):
 
   # -------------------- Custom Webhook Handling --------------------
     @asyncio.coroutine
-    async def execute_webhook(self, webhook:discord.Webhook, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, embed:discord.Embed = None, embeds = None, tts:bool = False):
-        '''
-        Custom discord.Webhook executer. 
-        Using this webhook executer forces the discord.py libaray to POST a webhook using the http.request function rather than the request function built into WebhookAdapter.
-        The big difference between the two functions is that http.request preforms the POST with an "Authorization" header which allows for the use of emojis and other bot level privilages.
-        
-        Parameters
-        ------------
-        webhook :class:`discord.Webhook`
-            The webhook you want to POST to.
-        content :class:`str`
-            Content of the POST message
-        username Optional[:class:`str`]
-            Username to post the webhook under. Overwrites the default name of the webhook.
-        avatar_url Optional[:class:`discord.Asset`]
-            Avatar for the webhook poster. Overwrites the default avatar of the webhook.
-        embed Optional[:class:`discord.Embed`]
-            discord Embed opject to post.
-        embeds List[:class:`discord.Embed`]
-            List of discord Embed object to post, maximum of 10 allowable.
-        tts :class:`bool`
-            Indicates if the message should be sent using text-to-speech.
-        '''
-
-        if embeds is not None and embed is not None:
-            raise discord.errors.InvalidArgument('Cannot mix embed and embeds keyword arguments.')
-
-        payload = {
-            'tts':tts
-        }
-
-        if content is not None:
-            payload['content'] = str(content).replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
-
-        if username:
-            payload['username'] = username
-
-        if avatar_url:
-            payload['avatar_url'] = str(avatar_url)
-
-        if embeds is not None:
-            if len(embeds) > 10:
-                raise discord.errors.InvalidArgument('embeds has a maximum of 10 elements.')
-            payload['embeds'] = [e.to_dict() for e in embeds]
-
-        if embed is not None:
-            payload['embeds'] = [embed.to_dict()]
-
-
-        await self.bot.http.request(route=discord.http.Route('POST', f'/webhooks/{webhook.id}/{webhook.token}'), json=payload)
-
-        return
-
-    @asyncio.coroutine
-    async def execute_webhook3(self, dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, content:str, username:str = None, avatar_url:Union[discord.Asset, str] = None, allowed_mentions=None, embed:discord.Embed = None, embeds = None, files = None, tts:bool = False):
+    async def execute_webhook(self, dest:Union[discord.TextChannel, discord.Message, discord.ext.commands.Context, int], *, content:str,  username:str = None, 
+        avatar_url:Union[discord.Asset, str] = None, allowed_mentions=None, embed:discord.Embed = None, embeds = None, files = None, tts:bool = False):
 
         '''
         Custom discord.Webhook executer. 
@@ -820,6 +638,8 @@ class NuggetEmoji(commands.Bot):
             discord Embed opject to post.
         embeds List[:class:`discord.Embed`]
             List of discord Embed object to post, maximum of 10 allowable.
+        files List[:class:`discord.File', :class:`discord.Attachment`, :class:`tuple`]
+            List of files to be sent. For the tuple class must be provided in this order (file name, file bytes)
         tts :class:`bool`
             Indicates if the message should be sent using text-to-speech.
         '''
@@ -925,7 +745,6 @@ class NuggetEmoji(commands.Bot):
         return
 
 
-
 # ======================================== Send Emote ========================================
     @asyncio.coroutine
     async def send_emote(self, 
@@ -1026,6 +845,7 @@ class NuggetEmoji(commands.Bot):
 
 
         pass
+
 
 # ======================================== Misc ========================================
 

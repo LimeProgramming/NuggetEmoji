@@ -23,9 +23,6 @@ from .util.allowed_mentions import AllowedMentions
 from .plugins.util.misc import AVATAR_URL_AS
 
 
-
-
-import dblogin
 import asyncpg
 from .pg_db import postgresql_db
 

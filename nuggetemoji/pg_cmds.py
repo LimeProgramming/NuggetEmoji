@@ -99,6 +99,24 @@ GET_ALL_GUILD_IDS = "SELECT guild_id FROM public.guild_settings;"
 REMOVE_GUILD_INFO = "DELETE FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT);"
 GET_GUILD_SETTINGS = "SELECT * FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT) LIMIT 1;"
 
+GET_BOOT_GUILD_SETTINGS = """
+    SELECT *, ARRAY(
+        SELECT 
+            (id, token, ch_id)::webhook
+        FROM webhooks 
+        WHERE 
+            guild_id = $1
+        ) as webhooks
+        
+    FROM guild_settings
+
+    WHERE 
+        guild_id = $1
+
+    LIMIT 1;
+    """
+
+
 # ============================== EMOJIS TABLE ==============================
 CREATE_EMOJIS_TABLE = """
     CREATE TABLE IF NOT EXISTS emojis (
@@ -108,4 +126,18 @@ CREATE_EMOJIS_TABLE = """
     animated        BOOLEAN,
     url             VARCHAR(100)
     );
+    """
+# ============================== COMPOSITE TYPES ==============================
+CREATE_WEBHOOK_TYPE="""
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'webhook') THEN
+            CREATE TYPE webhook AS
+            (
+            id        BIGINT,
+            token     VARCHAR(100),
+            ch_id     BIGINT
+            );
+        END IF;
+    END$$;
     """

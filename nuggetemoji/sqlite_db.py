@@ -129,9 +129,6 @@ class sqlite_db:
         if isinstance(guild_id, discord.Guild):
             if guild_id is None:
                 guild_id = guild_id.id
-        
-        elif type(guild_id) is int:
-            pass
 
         elif type(guild_id) is str:
             guild_id = guild_id.strip()
@@ -457,3 +454,44 @@ class sqlite_db:
         }
         del fetched 
         return tfetched
+
+    async def get_boot_guild_settings(self, guild_id):
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD
+
+      # ---------- Get guild settings from guild_settings table ----------
+        f1 = await self.get_guild_settings(guild_id)
+
+      # ---------- Get webhooks from webhooks table ----------
+        f2 = await self.get_guild_webhooks(guild_id)
+
+        hooks = []
+
+        for record in f2:
+            hooks.append(
+                {
+                'id':       record['id'], 
+                'token':    record['token'],
+                'ch_id':    record['ch_id']
+                }
+            )
+        
+        f1['webhooks'] = hooks
+
+        return f1
+        
+  # ============================== COMPOSITE TYPES ==============================
+    async def create_webhook_type(self):
+        return

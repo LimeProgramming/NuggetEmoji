@@ -340,9 +340,6 @@ class postgresql_db:
         if isinstance(guild_id, discord.Guild):
             guild_id = guild_id.id
 
-        elif type(guild_id) is int:
-            pass
-
         elif type(guild_id) is str:
             guild_id = guild_id.strip()
 
@@ -357,3 +354,27 @@ class postgresql_db:
         fetched = await self.conn.fetchrow(pg_cmds.GET_GUILD_SETTINGS, guild_id)
         
         return fetched
+
+    async def get_boot_guild_settings(self, guild_id):
+      # ---------- Sort out of the guild arg ----------
+        if isinstance(guild_id, discord.Guild):
+            guild_id = guild_id.id
+
+        elif type(guild_id) is str:
+            guild_id = guild_id.strip()
+
+            if not guild_id.isdigit():
+                return DBReturns.INVALIDGUILD  
+
+            guild_id =  int(guild_id)
+        
+        if not type(guild_id) is int:
+            return DBReturns.INVALIDGUILD
+
+        fetched = await self.conn.fetchrow(pg_cmds.GET_BOOT_GUILD_SETTINGS, guild_id)
+        return fetched
+
+  # ============================== COMPOSITE TYPES ==============================
+    async def create_webhook_type(self):
+        await self.conn.execute(pg_cmds.CREATE_WEBHOOK_TYPE)
+        return

@@ -145,100 +145,108 @@ class NuggetEmoji(commands.Bot):
 
 # ======================================== Bot on Ready Funcs ========================================
     async def validate_database(self):
+        '''
+        All this function is supposed to do is make sure that there is a database entry for all the guilds the bot is in,
+        while also removing guilds from the database the bot is no longer in.
+        '''
 
+        # -------------------- Create required tables and types for the database --------------------
+        await self.db.create_webhook_type()
         await self.db.create_webhook_table()
         await self.db.create_guild_settings_table()
 
         i = 0
         j = 0
-
+        db_guild_ids = set([g['guild_id'] for g in await self.db.get_all_guild_ids()])
+        bot_guild_ids = set([x.id for x in self.guilds])
+        
         # -------------------- Add new guilds --------------------
-        for guild in self.guilds:
+        #bot guilds that's not in db guilds. IE guilds the db doesn't know about
+        for i, guild in enumerate(bot_guild_ids.difference(db_guild_ids), 1):
+            await self.db.add_guild_settings(guild)
 
-            if not await self.db.guild_exists(guild):
-                i += 1
-                await self.db.add_guild_settings(guild)
-        
         # -------------------- Remove Old Guilds --------------------
-        guild_ids = [x.id for x in self.guilds]
-        db_guilds = await self.db.get_all_guild_ids()
+        #db guilds that's not in bot guilds. IE, guilds the bot left while down.
+        for j, guild in enumerate(db_guild_ids.difference(bot_guild_ids), 1):
+            await self.db.remove_guild(guild)
         
-        for db_guild in db_guilds:
-            
-            if db_guild['guild_id'] not in guild_ids:
-                j += 1
-                await self.db.remove_guild(db_guild['guild_id'])
-        
+        # -------------------- Give a little print out of what this done --------------------
         self.bot.safe_print(f"{i} guilds added to the database.")
         self.bot.safe_print(f"{j} old guilds removed from database.")
 
+
     async def pull_guild_settings(self):
+        '''
+        This functions job is to populate the guild_settings variable for the bot. 
+        It will also make sure there is a webhook for as many channels as it possibly can.
+
+        As a last ditch effort for the webhooks, the bot looks for webhooks it made and uses that.
+        '''
+
         self.guild_settings = dataclasses.GuildSettings()
         bot_ava = await self.user.avatar_url_as(format="png", size=128).read()
 
         for guild in self.guilds:
+            # === We get this for the sake of channel permissions
             bot_member = guild.get_member(self.user.id)
-            bot_errors = []
-            stored_webhooks = [(hook['id'], hook['token'], hook['ch_id']) for hook in await self.db.get_guild_webhooks(guild)]
-            stored_gettings = await self.db.get_guild_settings(guild)
 
-            sguild = dataclasses.Guild(
-                guild.name, 
-                guild.id, 
-                stored_gettings['prefix'], 
-                stored_gettings['allowed_roles'], 
-                stored_gettings['allow_mentions'], 
-                stored_gettings['allow_everyone']
+            # === Pull in what we know about the guild from the db
+            db_guild_info = await self.db.get_boot_guild_settings(guild)
+            db_webhooks_ids = [hook['id'] for hook in db_guild_info['webhooks']]
+
+            # === Build up the Guild type for guild_settings
+            sguild = dataclasses.Guild(name=guild.name, id=guild.id, 
+                prefix =            db_guild_info['prefix'], 
+                allowed_roles =     db_guild_info['allowed_roles'], 
+                allow_mentions =    db_guild_info['allow_mentions'], 
+                allow_everyone =    db_guild_info['allow_everyone']
                 )
 
-            # === Sort out the guilds webhooks.
-            for channel in guild.channels:
-                
-                # = Filter out categories and voice channels
-                if not isinstance(channel, discord.TextChannel):
-                    continue 
-                
+            # === Iter guilds text channels to sort out the guilds webhooks.
+            for channel in guild.text_channels:
+
                 # = If bot cannot manage_webhooks.
                 if not channel.permissions_for(bot_member).manage_webhooks:
-                    bot_errors.append(f'Bot lacks permission Manage Webhooks in channel <#{channel.id}>')
                     continue 
-
+                
+                # = Get the channels existing webhooks
                 webhooks = await channel.webhooks()
                 
-                # = If channel has no webhooks 
+                # --------------------------------------------------
+                # = If channel has no webhooks it's safe to assume that we have to make one.
                 if len(webhooks) == 0:
-                    hook = await channel.create_webhook(
-                        name=self.config.webhook_name, 
-                        avatar=bot_ava, 
-                        reason=f'Used by {self.bot.user.name} to post webhooks.'
-                    )
-
-                    await self.db.set_webhook(hook.id, hook.token, channel)
-                    sguild.set_webhook(channel.id, hook.id, hook.token)
-
+                    # - Create webhook
+                    hook = await self._create_webhook(channel, bot_ava)
+                    # - Write webhook to database
+                    await self.db.set_webhook(id = hook.id, token = hook.token, ch_id=channel)
+                    # - Write webhook to guild dataclass
+                    sguild.set_webhook2(dataclasses.Webhook(id = hook.id, token = hook.token, ch_id = channel.id))
+                    # - Move onto the next channel
                     continue
                 
-                # = if any of the channels webhooks match a stored webhook
-                known_webhooks = [(webhook.id, webhook.token, channel.id) for webhook in webhooks if (webhook.id, webhook.token, channel.id) in stored_webhooks]
-                if known_webhooks:
-                    hook = next(iter(known_webhooks))
-                    sguild.set_webhook(ch_id=hook[2], w_id=hook[0], w_token=hook[1])
+                # --------------------------------------------------
+                # = Try to find a channel webhook which is in the db
+                try:
+                    # - Pop a webhook
+                    hook = [webhook for webhook in webhooks if webhook.id in db_webhooks_ids].pop()
+                    # - Write webhook to guild dataclass
+                    sguild.set_webhook2(dataclasses.Webhook(id = hook.id, token = hook.token, ch_id = channel.id))
+                    # - Move onto the next channel
                     continue
-                
+
+                except IndexError: pass 
+
+                # --------------------------------------------------
                 # = Try to find a webhook the bot made and pick one.
                 try: 
-                    hook = next(filter(lambda x: x.user == self.bot.user, webhooks))
+                    hook = [webhook for webhook in webhooks if webhook.user == self.bot.user].pop()
                 
-                # = If not didn't make any of the channels webhooks, create one
-                except StopIteration:
-                    hook = await channel.create_webhook(
-                        name=self.config.webhook_name, 
-                        avatar=bot_ava, 
-                        reason=f'Used by {self.bot.user.name} to post webhooks.'
-                    )
+                except IndexError:
+                    # - Create webhook if bot didn't make any of the channels webhooks.
+                    hook = await self._create_webhook(channel, bot_ava)
                 
-                # = Store the webhook in database
                 finally:
+                    # - Store the webhook in database
                     await self.db.set_webhook(hook.id, hook.token, channel) 
                     sguild.set_webhook(channel.id, hook.id, hook.token)
 
@@ -954,6 +962,22 @@ class NuggetEmoji(commands.Bot):
         self.guild_settings.set_webhook(channel.guild, dataclasses.Webhook(hook.id, hook.token, channel.id))
         
         return dataclasses.Webhook(hook.id, hook.token, channel.id)
+
+    async def _create_webhook(self, channel:discord.TextChannel, avatar:Optional[bytes] = None):
+
+        # ===== Use bot's avatar as webhook avatar, if no alturnative is provided.
+        if avatar is None:
+            avatar = await self.user.avatar_url_as(format="png", size=128).read()
+
+        # ===== Create webhook with stuff pulled in from config
+        hook = await channel.create_webhook(
+            name=self.config.webhook_name, 
+            avatar=avatar, 
+            reason=f'Used by {self.bot.user.name} to post webhooks.'
+        )
+
+        return hook
+
 
 # ======================================== HTTP Replacements ========================================
 # Lets be honest, Rapptz is too busy being a weeabo to make these any good.

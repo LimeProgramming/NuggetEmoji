@@ -42,6 +42,8 @@ class Owner(commands.Cog):
                 await ctx.message.delete()
             except discord.errors.NotFound:
                 pass 
+            except discord.errors.Forbidden:
+                pass
         
         print('Ignoring exception in {}'.format(ctx.invoked_with), file=sys.stderr)
         print(error)

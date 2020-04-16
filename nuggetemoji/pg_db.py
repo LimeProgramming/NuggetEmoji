@@ -229,13 +229,6 @@ class postgresql_db:
         elif type(role) is int:
             role = str(role)
 
-      # ---------- Get exsiting data ----------
-        fetched = await self.conn.fetchval(pg_cmds.GET_GUILD_ALLOWED_ROLES, guild_id)
-
-      # ---------- If role is already allowed ----------
-        if role in fetched:
-            return DBReturns.ROLEDUPLICIT
-
       # ---------- Set new data ----------
         await self.conn.execute(pg_cmds.APPEND_GUILD_ALLOWED_ROLE, role, guild_id)
         return DBReturns.SUCCESS

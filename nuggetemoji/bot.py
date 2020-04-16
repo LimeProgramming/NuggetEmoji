@@ -110,13 +110,13 @@ class NuggetEmoji(commands.Bot):
         self.start_timestamp = datetime.datetime.utcnow()
 
       # ---------- Store a list of all the legacy bot commands ----------
-        self.bot_oneline_commands = ["restart", "shutdown", 'reboot']
+        #self.bot_oneline_commands = ["restart", "shutdown", 'reboot']
 
         super().__init__(command_prefix='?',            description=description,
                          pm_help=None,                  help_attrs=dict(hidden=True), 
                          fetch_offline_members=False   )#allowed_mentions=discord.AllowedMentions(everyone=False))
 
-        self.aiosession = aiohttp.ClientSession(loop=self.loop)
+        #self.aiosession = aiohttp.ClientSession(loop=self.loop)
 
       # -------------------- Load in the Cogs --------------------
         for plugin in plugins:
@@ -173,7 +173,6 @@ class NuggetEmoji(commands.Bot):
         # -------------------- Give a little print out of what this done --------------------
         self.bot.safe_print(f"{i} guilds added to the database.")
         self.bot.safe_print(f"{j} old guilds removed from database.")
-
 
     async def pull_guild_settings(self):
         '''
@@ -255,9 +254,10 @@ class NuggetEmoji(commands.Bot):
 
         return
 
+
 # ======================================== Bot Events ========================================
     async def on_ready(self):
-        print('\rConnected!  NuggetEmoji va0.3\n')
+        print('\rConnected!  NuggetEmoji va0.4\n')
 
         self.safe_print("--------------------------------------------------------------------------------")
         self.safe_print("Bot:   {0.name}#{0.discriminator} \t\t| ID: {0.id}".format(self.user))
@@ -995,7 +995,7 @@ class NuggetEmoji(commands.Bot):
         if tts:
             payload['tts'] = True
         if embed:
-            payload['embed'] = embed
+            payload['embed'] = embed.to_dict()
         if nonce:
             payload['nonce'] = nonce
 
@@ -1013,7 +1013,7 @@ class NuggetEmoji(commands.Bot):
         if allowed_mentions:
             payload['allowed_mentions'] = allowed_mentions
         if embed:
-            payload['embed'] = embed
+            payload['embed'] = embed.to_dict
         if nonce:
             payload['nonce'] = nonce
 

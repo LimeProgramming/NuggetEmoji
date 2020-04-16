@@ -7,3 +7,4 @@ nuggetemoji/plugins/images/storageservericons/src/
 *.db
 data/reboot.txt
 data/Do Not Delete
+logs/*

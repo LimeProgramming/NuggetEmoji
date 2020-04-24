@@ -50,7 +50,8 @@ class Config:
 
       # -------------------------------------------------- ADVANCED --------------------------------------------------
         self.webhook_name=      config.get(         'Advanced',   'Webhook name',     fallback='NuggetEmoji')
-        self.support_invite=    config.get(         'Adcanced',   'Support invite',   fallback=None)
+        self.support_invite=    config.get(         'Advanced',   'Support invite',   fallback=None)
+        self.sqlitelimit=       config.getint(      'Advanced',   'SqliteLimiter',    fallback=20)
 
 
         self.run_checks()

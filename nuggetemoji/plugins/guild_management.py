@@ -46,6 +46,26 @@ class GuildManagement(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
+      # ---------- If using SQLite database ----------
+        if self.bot.config.use_sqlite and len(self.bot.guilds) >= self.bot.config.sqlitelimit:
+            owner = guild.owner
+            
+            try:
+                await owner.send("Unfortunately I cannot join your awesome Discord server because of limitations of my database. \n I'll be leaving now. 👋")
+            except Exception:
+                pass
+
+            bot_owner = await self.bot.application_info().owner
+
+            try:
+                await bot_owner.send(f"I failed to join another guild. I could not join {guild.name} because I am at my max limit of guilds while using SQLite. If you want me to be able to join more servers, consider switched to PostgreSQL database which has unlimited guilds.")
+            except Exception:
+                pass
+
+            await guild.leave()
+            return 
+
+      # ---------- Setup variables ----------
         bot_member = guild.get_member(self.bot.user.id)
         bot_ava = await self.bot.user.avatar_url_as(format="png", size=128).read()
         guild_issues = []

@@ -1,3 +1,5 @@
 discord[voice]
 asyncpg
 aiosqlite
+PYyaml
+

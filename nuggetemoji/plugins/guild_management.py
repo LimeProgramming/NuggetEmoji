@@ -87,7 +87,7 @@ class GuildManagement(commands.Cog):
 
             # === If bot cannot manage_webhooks.
             if not channel.permissions_for(bot_member).manage_webhooks:
-                guild_issues.append(f"Missing Manage Webhooks permissions in <#{channel.id}.")
+                guild_issues.append(f"Missing Manage Webhooks permissions in <#{channel.id}>.")
                 continue 
             
             # === Get the channels existing webhooks
@@ -165,3 +165,6 @@ class GuildManagement(commands.Cog):
     async def on_guild_remove(self, guild):
         await self.bot.db.remove_guild(guild)
         pass
+
+def setup(bot):
+    bot.add_cog(GuildManagement(bot))

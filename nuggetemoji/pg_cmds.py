@@ -96,7 +96,10 @@ SET_GUILD_PREFIX = """
 EXISTS_GUILD_DATABASE = "SELECT EXISTS (SELECT guild_id FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT));"
 
 GET_ALL_GUILD_IDS = "SELECT guild_id FROM public.guild_settings;"
-REMOVE_GUILD_INFO = "DELETE FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT);"
+REMOVE_GUILD_INFO = """
+    DELETE FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT);
+    DELETE FROM public.webhooks WHERE guild_id = CAST($1 AS BIGINT);
+    """
 GET_GUILD_SETTINGS = "SELECT * FROM public.guild_settings WHERE guild_id = CAST($1 AS BIGINT) LIMIT 1;"
 
 GET_BOOT_GUILD_SETTINGS = """

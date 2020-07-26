@@ -42,9 +42,10 @@ Made by Calamity Lime#8500
 """
 
 plugins = (
-    ('nuggetemoji.plugins.test',       'Test'),
-    ('nuggetemoji.plugins.owner',      'Owner'),
-    ('nuggetemoji.plugins.admin',      'Admin'),
+    ('nuggetemoji.plugins.test',            'Test'),
+    ('nuggetemoji.plugins.owner',           'Owner'),
+    ('nuggetemoji.plugins.admin',           'Admin'),
+    ('nuggetemoji.plugins.guild_management','GuildManagement')
 )
 
 class NuggetEmoji(commands.Bot):
@@ -109,8 +110,8 @@ class NuggetEmoji(commands.Bot):
       # ---------- Store a list of all the legacy bot commands ----------
         #self.bot_oneline_commands = ["restart", "shutdown", 'reboot']
 
-        super().__init__(command_prefix='?',            description=description,
-                         pm_help=None,                  help_attrs=dict(hidden=True), 
+        super().__init__(command_prefix=self.config.command_prefix, description=description,
+                         pm_help=None,                              help_attrs=dict(hidden=True), 
                          fetch_offline_members=False   )#allowed_mentions=discord.AllowedMentions(everyone=False))
 
         #self.aiosession = aiohttp.ClientSession(loop=self.loop)
@@ -293,6 +294,10 @@ class NuggetEmoji(commands.Bot):
         # ----- If bots first run.
         if not pathlib.Path("data/Do Not Delete").exists():
             await self.first_run(owner)
+
+      # ---------- PRESENCE ----------
+        await self.change_presence( activity=discord.Game(name="{0.playing_game}".format(self.config)),
+                                    status=discord.Status.online)
 
     async def on_resume(self):
         await self.db.connect()

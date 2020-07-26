@@ -12,28 +12,30 @@ from discord import Webhook as DiscordWebhook
 class GuildSettings:
     guilds: dict = field(default_factory=dict)
 
+  # ---------- Guild Functions ----------
     def add_guild(self, guild):
         self.guilds[guild.id] = guild
     
     def get_guild(self, guild):
-        # ===== Sort out Guild Arg
-        if isinstance(guild, DiscordGuild):
-            guild = guild.id 
+        guild = guild.id if isinstance(guild, DiscordGuild) else guild
         
-        return self.guilds[guild]
+        return self.guilds.get(guild, None)
 
+    def del_guild(self, guild):
+        guild = guild.id if isinstance(guild, DiscordGuild) else guild
+
+        self.guilds.pop(guild, None)
+
+        return 
+
+  # ---------- Webhook Functions ----------
     def get_webhook(self, guild, channel):
-        # ===== Sort out Guild Arg
-        if isinstance(guild, DiscordGuild):
-            guild = guild.id 
-        
-        if isinstance(channel, DiscordTextChannel):
-            channel = channel.id
+        guild = guild.id if isinstance(guild, DiscordGuild) else guild
+        channel = channel.id if isinstance(channel, DiscordTextChannel) else channel
 
         try:
             return self.guilds[guild].get_webhook(channel)
         except KeyError:
-            print("keyerror")
             return None
     
     def set_webhook(self, guild, webhook):
@@ -41,20 +43,18 @@ class GuildSettings:
             self.guilds[webhook.guild_id].set_webhook2(Webhook(webhook.id, webhook.token, webhook.channel_id))
             return 
 
-        # ===== Sort out Guild Arg
-        if isinstance(guild, DiscordGuild):
-            guild = guild.id 
+        guild = guild.id if isinstance(guild, DiscordGuild) else guild
 
         self.guilds[guild].set_webhook2(webhook)
         return
     
     def del_webhook(self, guild, webhook):
-        # ===== Sort out Guild Arg
-        if isinstance(guild, DiscordGuild):
-            guild = guild.id 
+        guild = guild.id if isinstance(guild, DiscordGuild) else guild
 
-        self.guilds[guild]
-        
+        try:
+            self.guilds[guild].del_webhook(webhook)
+        except KeyError:
+            return None
 
 @dataclass
 class Webhook:
@@ -88,10 +88,7 @@ class Guild:
         return
 
     def get_webhook(self, ch_id):
-        try:
-            return self.webhooks[ch_id]
-        except KeyError:
-            return None
+        return self.webhooks.get(ch_id, None)
 
     def del_webhook(self, webhook):
         try:

@@ -1,7 +1,10 @@
 import sys
+import psutil
 import discord
 import asyncio
+import pathlib
 import datetime
+import platform
 
 from typing import Union
 from functools import partial
@@ -18,6 +21,19 @@ from nuggetemoji.util.exceptions import RestartSignal, TerminateSignal
 class Owner(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+  # -------------------- STATIC METHODS --------------------
+    @staticmethod
+    async def oneline_valid(content):
+        try:
+            args = content.split(" ")
+            if len(args) > 1:
+                return False 
+
+            return True
+
+        except (IndexError, ValueError):
+            return False
 
   # -------------------- local Cog Events -------------------- 
 
@@ -50,6 +66,129 @@ class Owner(commands.Cog):
 
 
   # -------------------- COMMANDS -------------------- 
+
+    @checks.BOT_OWNER()
+    @commands.command(pass_context=True, hidden=False, name='hoststats', aliases=[])
+    async def cmd_hoststats(self, ctx):
+        """
+        [Bot Owner] Returns current system utilzation of the bots host.
+        """
+
+        valid = await self.oneline_valid(ctx.message.content)
+        if not valid:
+            return
+
+        def MBorGB(val):
+            ret = val/1073741824
+
+            if ret < 1:
+                ret = "{0:.2f} MB".format((val/1048576))
+                return ret 
+
+            ret = "{0:.2f} GB".format(ret)
+            return ret
+
+        # ===== CPU INFORMATION
+        cpu_freq = psutil.cpu_freq()
+
+        # ===== PHYSICAL RAM
+        mem = psutil.virtual_memory()
+
+        # ===== DISK DRIVE SPACE    
+        d = psutil.disk_usage(pathlib.Path.cwd().__str__())
+
+        # ===== UPTIME
+        updelta = datetime.datetime.utcnow() - self.bot.start_timestamp
+
+        seconds = updelta.seconds
+
+        hours = int(seconds / 3600)
+        if hours > 1:
+            seconds = hours * 3600
+
+        minutes = int(seconds / 60)
+        if minutes > 1:
+            seconds = minutes * 60
+        
+
+        embed = discord.Embed(  title=      "Host System Stats",
+                                description="",
+                                colour=     RANDOM_DISCORD_COLOR(),
+                                timestamp=  datetime.datetime.utcnow(),
+                                type=       "rich"
+                                )
+
+
+        embed.add_field(
+            name=   "CPU:",
+            value=  f"> **Cores:** {psutil.cpu_count(logical=False)} ({psutil.cpu_count(logical=True)})\n"
+                    f"> **Architecture:** {platform.machine()}\n"
+                    f"> **Affinity:** {len(psutil.Process().cpu_affinity())}\n"
+                    f"> **Useage:** {psutil.cpu_percent()}%\n"
+                    f"> **Freq:** {cpu_freq[0]} Mhz",
+            inline= True
+            )
+        
+        embed.add_field(
+            name=   "Memory:",
+            value=  f"> **Total:** {MBorGB(mem[0])}\n"
+                    f"> **Free:** {MBorGB(mem[1])}\n"
+                    f"> **Used:** {mem[2]}%",
+            inline= True
+            )
+        
+        embed.add_field(
+            name=   "Storage:",
+            value=  f"> **Total:** {MBorGB(d[0])}\n"
+                    f"> **Free:** {MBorGB(d[2])}\n"
+                    f"> **Used:** {d[3]}%",
+            inline= True
+            )
+
+        embed.add_field(
+            name=   "Network:",
+            value=  "> **Useage:**\n"
+                    f"> - Send: {MBorGB(psutil.net_io_counters().bytes_sent)}"
+                    f"> - Recv: {MBorGB(psutil.net_io_counters().bytes_recv)}",
+            inline= True
+            )
+
+        embed.add_field(
+            name=   "Python:",
+            value=  f"> **Version:** {platform.python_version()}\n"
+                    f"> **Discord.py** {discord.__version__}\n"
+                    f"> **Bits:** {platform.architecture()[0]}",
+            inline= True
+            )
+
+        embed.add_field(
+            name=   "Bot Uptime:",
+            value=  f"> **Launched:** {self.bot.start_timestamp.strftime('%b %d, %Y')}\n"
+                    f"> **Time:** days:{updelta.days}, hours:{hours}, minutes:{minutes}, seconds:{seconds}\n",
+            inline= True
+            )
+
+        embed.add_field(
+            name=       "Process",
+            value=      f"> **Memory:** {MBorGB(psutil.Process().memory_info().rss)}\n"
+                        f"> **CPU:**    {psutil.Process().cpu_percent(interval=2)}%\n"
+                        f"> **Threads:**{psutil.Process().num_threads()}",
+            inline= True
+            )
+
+        embed.set_author(
+            name=   f"{self.bot.user.name}#{self.bot.user.discriminator}",
+            icon_url=AVATAR_URL_AS(self.bot.user)
+            )
+        
+        embed.set_thumbnail(
+            url=        AVATAR_URL_AS(user=self.bot.user, format=None, size=512)
+            )
+
+        await ctx.channel.send(embed = embed)
+        return
+
+
     @checks.BOT_OWNER()
     @commands.command(pass_context=True, hidden=False, name='reboot', aliases=['restart'])
     async def cmd_reboot(self, ctx):

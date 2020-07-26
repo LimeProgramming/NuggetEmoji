@@ -42,7 +42,7 @@ class Test(commands.Cog):
         if self.bot.config.delete_invoking:
             try:
                 await ctx.message.delete()
-            except discord.errors.NotFound:
+            except (discord.errors.NotFound, discord.errors.Forbidden):
                 pass 
 
     @asyncio.coroutine
@@ -54,7 +54,7 @@ class Test(commands.Cog):
         if self.bot.config.delete_invoking:
             try:
                 await ctx.message.delete()
-            except discord.errors.NotFound:
+            except (discord.errors.NotFound, discord.errors.Forbidden):
                 pass 
 
 

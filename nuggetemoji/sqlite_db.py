@@ -399,7 +399,10 @@ class sqlite_db:
         return fetched
 
     async def remove_guild(self, guild_id):
-        sql = "DELETE FROM public.guild_settings WHERE guild_id = CAST(:guild_id AS BIGINT);"
+        sql = """
+        DELETE FROM public.guild_settings WHERE guild_id = CAST(:guild_id AS BIGINT);
+        DELETE FROM public.webhooks WHERE guild_id = CAST(:guild_id AS BIGINT);
+        """
         
       # ---------- Sort out of the guild arg ----------
         if isinstance(guild_id, discord.Guild):

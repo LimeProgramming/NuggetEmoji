@@ -2,4 +2,4 @@ discord[voice]
 asyncpg
 aiosqlite
 PYyaml
-
+psutil

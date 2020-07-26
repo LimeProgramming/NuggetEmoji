@@ -53,3 +53,16 @@ class Channel:
 x = Guild("test", 1, {1: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 2: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 3: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 4: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 5: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 6: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 7: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 8: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 9: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 10: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 11: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 12: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 13: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"], 14: ["Lorem", "Ipsum", "Dolor", "Sit", "Amet", "Consectetuer"]})
 
 
+@dataclass
+class GuildSettings:
+    guilds: dict = field(default_factory=dict)
+    def add_guild(self, guild):
+        self.guilds[guild.id] = guild
+    @overload
+    def get_guild(self, guild: bytes):
+	    print("bytes")
+        return self.guilds.get(guild.id, None)
+    @overload
+    def get_guild(self, guild: int):
+	    print("int")
+        return self.guilds.get(guild, None)
